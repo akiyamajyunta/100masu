@@ -1,4 +1,4 @@
-"""難易度・UI 定数。"""
+"""演算モード・UI 定数。"""
 
 from __future__ import annotations
 
@@ -7,22 +7,34 @@ from enum import StrEnum
 STAR_GAUGE_MAX = 8
 TIME_BAR_CAP_SEC = 600.0
 
-DIFFICULTY_LABEL_EN: dict[str, str] = {
-    "easy": "EASY",
-    "normal": "NORMAL",
-    "hard": "HARD",
+# 本番グリッド（10×10 = 81 マス）
+DEFAULT_GRID_SIZE = 10
+
+
+class Operation(StrEnum):
+    ADD = "add"
+    SUB = "sub"
+    MUL = "mul"
+    DIV = "div"
+
+
+OPERATION_LABELS: dict[Operation, str] = {
+    Operation.ADD: "たし算",
+    Operation.SUB: "ひき算",
+    Operation.MUL: "かけ算",
+    Operation.DIV: "わり算",
 }
 
+OPERATION_SYMBOLS: dict[Operation, str] = {
+    Operation.ADD: "＋",
+    Operation.SUB: "−",
+    Operation.MUL: "×",
+    Operation.DIV: "÷",
+}
 
-class Difficulty(StrEnum):
-    EASY = "easy"
-    NORMAL = "normal"
-    HARD = "hard"
-
-
-def difficulty_from_grid(grid_size: int) -> Difficulty:
-    if grid_size <= 3:
-        return Difficulty.EASY
-    if grid_size <= 4:
-        return Difficulty.NORMAL
-    return Difficulty.HARD
+OPERATION_RANKING_TAB: dict[Operation, str] = {
+    Operation.ADD: "たし算",
+    Operation.SUB: "ひき算",
+    Operation.MUL: "かけ算",
+    Operation.DIV: "わり算",
+}

@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from masu.config import Difficulty
+from masu.config import Operation
 from masu.leaderboard import LeaderboardEntry, empty_leaderboards, insert_entry
 
 SCORES_PATH = Path.home() / ".100masu" / "scores.json"
@@ -22,7 +22,7 @@ class ScoreStore:
     @classmethod
     def empty(cls) -> ScoreStore:
         return cls(
-            high_by_difficulty={d.value: 0 for d in Difficulty},
+            high_by_difficulty={d.value: 0 for d in Operation},
             leaderboards=empty_leaderboards(),
         )
 
@@ -68,11 +68,11 @@ class ScoreStore:
             encoding="utf-8",
         )
 
-    def high_score(self, difficulty: Difficulty) -> int:
-        return self.high_by_difficulty.get(difficulty.value, 0)
+    def high_score(self, operation: Operation) -> int:
+        return self.high_by_difficulty.get(operation.value, 0)
 
-    def record_session(self, difficulty: Difficulty, session_score: int) -> int:
-        key = difficulty.value
+    def record_session(self, operation: Operation, session_score: int) -> int:
+        key = operation.value
         prev = self.high_by_difficulty.get(key, 0)
         new_high = max(prev, session_score)
         if new_high != prev:
@@ -80,19 +80,19 @@ class ScoreStore:
             self.save()
         return new_high
 
-    def leaderboard(self, difficulty: Difficulty) -> list[LeaderboardEntry]:
-        return list(self.leaderboards.get(difficulty.value, []))
+    def leaderboard(self, operation: Operation) -> list[LeaderboardEntry]:
+        return list(self.leaderboards.get(operation.value, []))
 
     def add_leaderboard_entry(
         self,
-        difficulty: Difficulty,
+        operation: Operation,
         name: str,
         score: int,
         *,
         played_at: str,
         accuracy: float,
     ) -> None:
-        key = difficulty.value
+        key = operation.value
         current = self.leaderboards.get(key, [])
         self.leaderboards[key] = insert_entry(
             current,

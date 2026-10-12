@@ -5,7 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import font as tkfont
 
-from masu.config import DIFFICULTY_LABEL_EN, STAR_GAUGE_MAX
+from masu.config import STAR_GAUGE_MAX
 from masu import theme as T
 
 
@@ -23,7 +23,7 @@ class StatusSidebar(tk.Frame):
         self.label_font = tkfont.Font(family="Yu Gothic UI", size=11)
         self.value_font = tkfont.Font(family="Yu Gothic UI", size=16, weight="bold")
 
-        self.mode_var = tk.StringVar(value="NORMAL")
+        self.mode_var = tk.StringVar(value="たし算")
         tk.Label(
             inner,
             textvariable=self.mode_var,

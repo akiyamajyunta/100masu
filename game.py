@@ -1,14 +1,17 @@
-"""100マス計算（足し算）のゲームロジック。"""
+"""100マス計算のゲームロジック（四則演算）。"""
 
 from __future__ import annotations
 
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Tuple
 
-# 開発用に 4×4。本番仕様に戻すときは 10 に変更
+from masu.config import Operation
+
+# デフォルトは 4×4（開発）。起動時に configure_grid で変更
 GRID_SIZE = 4
 
 PLAY_ROW_MIN = 1
@@ -16,17 +19,30 @@ PLAY_COL_MIN = 1
 PLAY_ROW_MAX = GRID_SIZE - 1
 PLAY_COL_MAX = GRID_SIZE - 1
 PLAY_CELL_COUNT = (GRID_SIZE - 1) ** 2
+
+
+def configure_grid(size: int) -> None:
+    """グリッドサイズを変更し、プレイ領域定数を更新する。"""
+    global GRID_SIZE, PLAY_ROW_MAX, PLAY_COL_MAX, PLAY_CELL_COUNT
+    n = max(3, min(10, int(size)))
+    GRID_SIZE = n
+    PLAY_ROW_MAX = GRID_SIZE - 1
+    PLAY_COL_MAX = GRID_SIZE - 1
+    PLAY_CELL_COUNT = (GRID_SIZE - 1) ** 2
+
+
 PENALTY_WRONG_SECONDS = 10
 PENALTY_EMPTY_SECONDS = 20
 EMPTY_PENALTY_MARK = "__empty__"
 
-# 初期選択マス「2二」（グリッド座標 行1・列1）
 INITIAL_FOCUS_ROW = 1
 INITIAL_FOCUS_COL = 1
 
+_DIV_INPUT_RE = re.compile(r"^\d+(?:\.\d)?$")
+_INT_INPUT_RE = re.compile(r"^-?\d+$")
+
 
 def header_reveal_cells() -> list[tuple[int, int]]:
-    """数字ヘッダーを上段（左→右）→ 左段（上→下）の順で並べる。"""
     cells: list[tuple[int, int]] = []
     for col in range(1, GRID_SIZE):
         cells.append((0, col))
@@ -36,12 +52,29 @@ def header_reveal_cells() -> list[tuple[int, int]]:
 
 
 def play_cells_score_order() -> list[tuple[int, int]]:
-    """採点順: 2二→2三→…→行末、次の行 3二→…（行優先）。"""
     cells: list[tuple[int, int]] = []
     for row in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
         for col in range(PLAY_COL_MIN, PLAY_COL_MAX + 1):
             cells.append((row, col))
     return cells
+
+
+def compute_expected(a: int, b: int, operation: Operation) -> float:
+    """正解値（わり算は小数第2位四捨五入で小数第1位）。"""
+    if operation is Operation.ADD:
+        return float(a + b)
+    if operation is Operation.SUB:
+        return float(a - b)
+    if operation is Operation.MUL:
+        return float(a * b)
+    return round(a / b, 1)
+
+
+def format_expected_display(value: float, operation: Operation) -> str:
+    if operation is Operation.DIV:
+        return f"{value:.1f}"
+    iv = int(value)
+    return str(iv)
 
 
 class CellState(str, Enum):
@@ -58,6 +91,7 @@ class PlayCell:
 
 @dataclass
 class GameState:
+    operation: Operation = Operation.ADD
     header: list[list[int]] = field(default_factory=list)
     cells: Dict[Tuple[int, int], PlayCell] = field(default_factory=dict)
     focus_row: int = INITIAL_FOCUS_ROW
@@ -99,8 +133,10 @@ class GameState:
             and PLAY_COL_MIN <= col <= PLAY_COL_MAX
         )
 
-    def expected_answer(self, row: int, col: int) -> int:
-        return self.header[row][0] + self.header[0][col]
+    def expected_answer(self, row: int, col: int) -> float:
+        a = self.header[row][0]
+        b = self.header[0][col]
+        return compute_expected(a, b, self.operation)
 
     def elapsed_seconds(self) -> float:
         if self.start_monotonic is None:
@@ -162,6 +198,31 @@ class GameState:
         self.penalty_count += 1
         self.penalty_seconds += PENALTY_EMPTY_SECONDS
 
+    @staticmethod
+    def parse_answer(raw: str, operation: Operation) -> float | None:
+        trimmed = raw.strip()
+        if not trimmed:
+            return None
+        if operation is Operation.DIV:
+            if not _DIV_INPUT_RE.match(trimmed):
+                return None
+            return round(float(trimmed), 1)
+        if not _INT_INPUT_RE.match(trimmed):
+            return None
+        return float(int(trimmed))
+
+    @staticmethod
+    def answers_match(expected: float, parsed: float, operation: Operation) -> bool:
+        if operation is Operation.DIV:
+            return round(parsed, 1) == expected
+        return parsed == expected
+
+    @staticmethod
+    def canonical_value(parsed: float, operation: Operation) -> str:
+        if operation is Operation.DIV:
+            return f"{round(parsed, 1):.1f}"
+        return str(int(parsed))
+
     def validate_cell(self, row: int, col: int, raw_value: str) -> None:
         cell = self.cells.get((row, col))
         if cell is None:
@@ -174,22 +235,21 @@ class GameState:
             cell.last_penalized_value = None
             return
 
-        if not trimmed.isdigit():
+        parsed = self.parse_answer(trimmed, self.operation)
+        if parsed is None:
             self.apply_penalty(cell, trimmed)
             cell.value = trimmed
             cell.state = CellState.EMPTY
             return
 
-        num = int(trimmed)
-        value_str = str(num)
         expected = self.expected_answer(row, col)
-
-        if num == expected:
-            cell.value = value_str
+        if self.answers_match(expected, parsed, self.operation):
+            cell.value = self.canonical_value(parsed, self.operation)
             cell.state = CellState.CORRECT
             cell.last_penalized_value = None
             return
 
+        value_str = self.canonical_value(parsed, self.operation)
         self.apply_penalty(cell, value_str)
         cell.value = value_str
         cell.state = CellState.EMPTY
@@ -206,13 +266,13 @@ class GameState:
 
     def validate_all_cells(self) -> None:
         self.commit_focus()
-        for (row, col), cell in self.cells.items():
+        for (_row, _col), cell in self.cells.items():
             if not cell.value.strip():
                 cell.value = ""
                 cell.state = CellState.EMPTY
                 self.apply_empty_penalty(cell)
                 continue
-            self.validate_cell(row, col, cell.value)
+            self.validate_cell(_row, _col, cell.value)
 
     def move_focus(self, dr: int, dc: int) -> None:
         if self.finished:
@@ -226,15 +286,60 @@ class GameState:
         )
         self.sync_buffer_from_focus()
 
-    def handle_digit(self, digit: str) -> None:
+    def _buffer_would_be_valid(self, candidate: str) -> bool:
+        if candidate == "":
+            return True
+        if self.operation is Operation.DIV:
+            return bool(_DIV_INPUT_RE.match(candidate)) or candidate.endswith(".")
+        if self.operation is Operation.SUB:
+            if candidate == "-":
+                return True
+            return bool(_INT_INPUT_RE.match(candidate))
+        return candidate.isdigit()
+
+    def _buffer_within_range(self, candidate: str) -> bool:
+        if not candidate or candidate == "-" or candidate.endswith("."):
+            return True
+        parsed = self.parse_answer(candidate, self.operation)
+        if parsed is None:
+            return False
+        if self.operation is Operation.ADD:
+            return 0 <= parsed <= 18
+        if self.operation is Operation.MUL:
+            return 0 <= parsed <= 81
+        if self.operation is Operation.SUB:
+            return -8 <= parsed <= 8
+        return 0.0 <= parsed <= 9.0
+
+    def handle_char(self, ch: str) -> None:
         if self.finished or not self.is_play_cell(self.focus_row, self.focus_col):
             return
-        candidate = self.buffer + digit
-        if not candidate.isdigit():
+
+        if self.operation is Operation.SUB and ch == "-" and self.buffer == "":
+            self.buffer = "-"
             return
-        if int(candidate) > 18:
+
+        if self.operation is Operation.DIV and ch == ".":
+            if "." in self.buffer:
+                return
+            if not self.buffer:
+                self.buffer = "0."
+            else:
+                self.buffer = self.buffer + "."
+            return
+
+        if not ch.isdigit():
+            return
+
+        candidate = self.buffer + ch
+        if not self._buffer_would_be_valid(candidate):
+            return
+        if not self._buffer_within_range(candidate):
             return
         self.buffer = candidate
+
+    def handle_digit(self, digit: str) -> None:
+        self.handle_char(digit)
 
     def handle_backspace(self) -> None:
         if self.finished or not self.is_play_cell(self.focus_row, self.focus_col):

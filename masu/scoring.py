@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from masu.config import Difficulty
+from masu.config import Operation
 
 SCORE_BASE = 10000
 SCORE_MIN = 100
 _SPEED_MIN_FACTOR = 0.25
 _SPEED_TIER_END_SEC = 600
 
-_DIFFICULTY_MULT: dict[Difficulty, float] = {
-    Difficulty.EASY: 1.0,
-    Difficulty.NORMAL: 1.6,
-    Difficulty.HARD: 2.4,
+_OPERATION_MULT: dict[Operation, float] = {
+    Operation.ADD: 1.0,
+    Operation.SUB: 1.2,
+    Operation.MUL: 1.5,
+    Operation.DIV: 1.8,
 }
 
 
@@ -43,9 +44,9 @@ def compute_session_score(
     elapsed_sec: float,
     correct: int,
     total: int,
-    difficulty: Difficulty,
+    operation: Operation,
 ) -> int:
     acc = correct / total if total else 0.0
-    mult = _DIFFICULTY_MULT[difficulty]
+    mult = _OPERATION_MULT[operation]
     raw = SCORE_BASE * speed_factor(elapsed_sec) * mult * (0.25 + 0.75 * acc)
     return max(SCORE_MIN, int(raw))

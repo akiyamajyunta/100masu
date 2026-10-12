@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from masu.config import Difficulty
+from masu.config import Operation
 
 LEADERBOARD_SIZE = 10
 PLACEHOLDER_NAME = "-"
@@ -50,11 +50,51 @@ class LeaderboardEntry:
 
 
 def empty_leaderboards() -> dict[str, list[LeaderboardEntry]]:
-    return {d.value: [] for d in Difficulty}
+    return {d.value: [] for d in Operation}
 
 
 def placeholder_entry() -> LeaderboardEntry:
     return LeaderboardEntry(name=PLACEHOLDER_NAME, score=0, played_at="", accuracy=0.0)
+
+
+def is_placeholder(entry: LeaderboardEntry) -> bool:
+    return (
+        entry.name == PLACEHOLDER_NAME
+        and entry.score == 0
+        and not entry.played_at
+    )
+
+
+def format_score(score: int) -> str:
+    return f"{max(0, score):0{SCORE_PAD_WIDTH}d}"
+
+
+def format_accuracy(accuracy: float) -> str:
+    return f"{max(0.0, min(100.0, accuracy)):.1f}%"
+
+
+def row_display(entry: LeaderboardEntry) -> tuple[str, str, str, str]:
+    if is_placeholder(entry):
+        return (
+            PLACEHOLDER_NAME,
+            format_score(0),
+            EMPTY_DATE,
+            format_accuracy(0.0),
+        )
+    date = entry.played_at if entry.played_at else EMPTY_DATE
+    return (
+        entry.name,
+        format_score(entry.score),
+        date,
+        format_accuracy(entry.accuracy),
+    )
+
+
+def padded_entries(entries: list[LeaderboardEntry]) -> list[LeaderboardEntry]:
+    out = list(entries[:LEADERBOARD_SIZE])
+    while len(out) < LEADERBOARD_SIZE:
+        out.append(placeholder_entry())
+    return out
 
 
 def insert_entry(
