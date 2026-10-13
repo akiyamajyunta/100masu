@@ -20,11 +20,9 @@ from game import (
 )
 from masu import theme as UI
 from masu.anim_timings import (
-    INTRO_GLOW,
     INTRO_SCALE_LEVELS,
     INTRO_SCALE_MS,
     INTRO_STAGGER_MS,
-    SCORE_GLOW,
     SCORE_SCALE_LEVELS,
     SCORE_SCALE_MS,
     SCORE_STAGGER_MS,
@@ -133,7 +131,6 @@ class AnimationsMixin:
             tile_top_bg=HEADER_TILE_TOP,
             tile_bottom_bg=HEADER_TILE_BOTTOM,
             fg=HEADER_NUM_FG,
-            glow_color=INTRO_GLOW,
             scale_levels=INTRO_SCALE_LEVELS,
             scale_ms=self._intro_scale_ms,
             is_stale=lambda: gen != self._intro_gen,
@@ -149,13 +146,13 @@ class AnimationsMixin:
         tile_top_bg: str,
         tile_bottom_bg: str,
         fg: str,
-        glow_color: str,  # 互換用（白 glow は Windows で残像が出るため未使用）
         scale_levels: tuple[float, ...],
         scale_ms: int,
         is_stale: Callable[[], bool],
         on_complete: Callable[[], None],
         mark_image: tk.PhotoImage | None = None,
     ) -> None:
+        """マス上でタイルだけを拡大縮小（白 glow は使わない）。"""
         pop_root = self.grid_wrap
         x, y, w, h = self._grid_cell_rect_in_wrap(gr, gc)
 
@@ -283,7 +280,6 @@ class AnimationsMixin:
             tile_top_bg=tile_bg,
             tile_bottom_bg=tile_bg,
             fg=sym_fg,
-            glow_color=SCORE_GLOW,
             scale_levels=SCORE_SCALE_LEVELS,
             scale_ms=self._score_scale_ms,
             is_stale=lambda: gen != self._score_gen,
