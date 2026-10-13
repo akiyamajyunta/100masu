@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from masu.config import Operation
+from masu.config import Operation, all_board_keys, board_key
 from masu.leaderboard import LeaderboardEntry, empty_leaderboards, insert_entry
 
 SCORES_PATH = Path.home() / ".100masu" / "scores.json"
@@ -21,8 +21,9 @@ class ScoreStore:
 
     @classmethod
     def empty(cls) -> ScoreStore:
+        keys = all_board_keys()
         return cls(
-            high_by_difficulty={d.value: 0 for d in Operation},
+            high_by_difficulty={k: 0 for k in keys},
             leaderboards=empty_leaderboards(),
         )
 
@@ -37,13 +38,16 @@ class ScoreStore:
         store = cls.empty()
         raw_high = data.get("high_by_difficulty", {})
         if isinstance(raw_high, dict):
-            for key in store.high_by_difficulty:
-                if key in raw_high:
-                    store.high_by_difficulty[key] = max(0, int(raw_high[key]))
+            for key, val in raw_high.items():
+                k = str(key)
+                try:
+                    store.high_by_difficulty[k] = max(0, int(val))
+                except (TypeError, ValueError):
+                    continue
         raw_boards = data.get("leaderboards", {})
         if isinstance(raw_boards, dict):
-            for key in store.leaderboards:
-                items = raw_boards.get(key, [])
+            for key, items in raw_boards.items():
+                k = str(key)
                 if not isinstance(items, list):
                     continue
                 parsed: list[LeaderboardEntry] = []
@@ -51,7 +55,7 @@ class ScoreStore:
                     entry = LeaderboardEntry.from_dict(item)
                     if entry is not None:
                         parsed.append(entry)
-                store.leaderboards[key] = parsed
+                store.leaderboards[k] = parsed
         return store
 
     def save(self) -> None:
@@ -68,11 +72,13 @@ class ScoreStore:
             encoding="utf-8",
         )
 
-    def high_score(self, operation: Operation) -> int:
-        return self.high_by_difficulty.get(operation.value, 0)
+    def high_score(self, operation: Operation, grid_size: int) -> int:
+        return self.high_by_difficulty.get(board_key(operation, grid_size), 0)
 
-    def record_session(self, operation: Operation, session_score: int) -> int:
-        key = operation.value
+    def record_session(
+        self, operation: Operation, grid_size: int, session_score: int
+    ) -> int:
+        key = board_key(operation, grid_size)
         prev = self.high_by_difficulty.get(key, 0)
         new_high = max(prev, session_score)
         if new_high != prev:
@@ -80,19 +86,22 @@ class ScoreStore:
             self.save()
         return new_high
 
-    def leaderboard(self, operation: Operation) -> list[LeaderboardEntry]:
-        return list(self.leaderboards.get(operation.value, []))
+    def leaderboard(
+        self, operation: Operation, grid_size: int
+    ) -> list[LeaderboardEntry]:
+        return list(self.leaderboards.get(board_key(operation, grid_size), []))
 
     def add_leaderboard_entry(
         self,
         operation: Operation,
+        grid_size: int,
         name: str,
         score: int,
         *,
         played_at: str,
         accuracy: float,
     ) -> None:
-        key = operation.value
+        key = board_key(operation, grid_size)
         current = self.leaderboards.get(key, [])
         self.leaderboards[key] = insert_entry(
             current,

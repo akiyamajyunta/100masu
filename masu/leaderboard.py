@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from masu.config import Operation
+from masu.config import Operation, all_board_keys
 
 LEADERBOARD_SIZE = 10
 PLACEHOLDER_NAME = "-"
@@ -50,7 +50,7 @@ class LeaderboardEntry:
 
 
 def empty_leaderboards() -> dict[str, list[LeaderboardEntry]]:
-    return {d.value: [] for d in Operation}
+    return {key: [] for key in all_board_keys()}
 
 
 def placeholder_entry() -> LeaderboardEntry:

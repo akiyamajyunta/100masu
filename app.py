@@ -20,13 +20,13 @@ from game import (
     play_cells_score_order,
 )
 from masu.config import (
-    DEFAULT_GRID_SIZE,
+    GRID_SIZES,
     OPERATION_LABELS,
     OPERATION_RANKING_TAB,
     OPERATION_SYMBOLS,
     STAR_GAUGE_MAX,
-    TIME_BAR_CAP_SEC,
     Operation,
+    grid_label,
 )
 from masu import theme as UI
 from masu.launcher import resolve_display_settings
@@ -93,6 +93,7 @@ class AppScreen(StrEnum):
     TITLE = auto()
     HELP = auto()
     MODE = auto()
+    GRID = auto()
     GAME = auto()
     SCORE_RANKING = auto()
 
@@ -106,6 +107,8 @@ class MasuApp:
 
         self.score_store = ScoreStore.load()
         self.operation = Operation.ADD
+        self.grid_size = GRID_SIZES[0]
+        self.pending_operation = Operation.ADD
         self.display_score = 0
         self.last_accuracy = 0.0
         self.last_played_at = ""
@@ -114,7 +117,10 @@ class MasuApp:
         self.current = AppScreen.TITLE
         self.title_menu = 0
         self.mode_cursor = 0
+        self.grid_cursor = 0
         self.ranking_operation_cursor = 0
+        self.ranking_grid_cursor = 0
+        self.grid_sizes = list(GRID_SIZES)
         self.result_view = "menu"
         self.result_menu = 0
         self.entry_name = ""
@@ -165,7 +171,6 @@ class MasuApp:
         self._menu_body_font = tkfont.Font(family=FONT_FAMILY, size=12)
         self._menu_small_font = tkfont.Font(family=FONT_FAMILY, size=10)
 
-        self.timer_var = tk.StringVar(value="0:00.0")
         self.guide_var = tk.StringVar(value="")
 
         self.shell = tk.Frame(self.root, bg=UI.BG)
@@ -219,28 +224,6 @@ class MasuApp:
         self.grid_wrap = tk.Frame(main_panel, bg=UI.MAIN_INNER)
         self.grid_wrap.pack(anchor="n")
         self.main_panel = main_panel
-
-        legend = tk.Frame(main_panel, bg=UI.MAIN_INNER)
-        legend.pack(pady=(4, 4))
-        for text, bg, inner in (
-            ("未入力", CELL_EMPTY, False),
-            ("選択中", FOCUS_RING_BRIGHT, True),
-        ):
-            item = tk.Frame(legend, bg=UI.MAIN_INNER)
-            item.pack(side="left", padx=8)
-            if inner:
-                swatch = tk.Frame(item, bg=FOCUS_RING_BRIGHT)
-                swatch.pack(side="left", padx=(0, 4))
-                tk.Label(swatch, width=2, bg=CELL_EMPTY).pack(
-                    padx=2, pady=2
-                )
-            else:
-                swatch = tk.Frame(item, bg=CELL_BORDER)
-                swatch.pack(side="left", padx=(0, 4))
-                tk.Label(swatch, width=2, bg=bg).pack(padx=1, pady=1)
-            tk.Label(
-                item, text=text, font=stat_font, fg=UI.TEXT_DIM, bg=UI.MAIN_INNER
-            ).pack(side="left")
 
         self.sidebar.restart_btn.configure(command=self._restart_current_game)
 
@@ -456,7 +439,7 @@ class MasuApp:
             "Enter … 終了して採点（確認あり）",
             "Backspace … 入力の削除",
             "",
-            "たし算・ひき算・かけ算・わり算 から選択",
+            "演算 → マス目（4×4〜12×12）の順で選択",
             "わり算 … 小数第1位まで（第2位四捨五入）",
             "誤答 +10秒 / 未入力 +20秒（採点時）",
         ):
@@ -491,7 +474,37 @@ class MasuApp:
             self.mode_menu_labels.append(lbl)
         tk.Label(
             mode_f,
-            text="Enter で開始　Esc でタイトル",
+            text="Enter でマス目選択　Esc でタイトル",
+            font=self._menu_small_font,
+            fg=UI.TEXT_DIM,
+            bg=UI.BG,
+        ).pack(side="bottom", pady=24)
+
+        grid_f = tk.Frame(self.menu_layer, bg=UI.BG)
+        self.menu_frames[AppScreen.GRID] = grid_f
+        tk.Label(
+            grid_f,
+            text="マス目を選ぶ",
+            font=self._menu_heading_font,
+            fg=UI.TEXT,
+            bg=UI.BG,
+        ).pack(pady=(48, 8))
+        self.grid_op_hint_var = tk.StringVar(value="")
+        tk.Label(
+            grid_f,
+            textvariable=self.grid_op_hint_var,
+            font=self._menu_body_font,
+            fg=UI.TEXT_DIM,
+            bg=UI.BG,
+        ).pack(pady=(0, 16))
+        self.grid_menu_labels: list[tk.Label] = []
+        for _size in self.grid_sizes:
+            lbl = tk.Label(grid_f, text="", font=self._menu_heading_font, bg=UI.BG)
+            lbl.pack(pady=10)
+            self.grid_menu_labels.append(lbl)
+        tk.Label(
+            grid_f,
+            text="Enter で開始　Esc で演算選択へ",
             font=self._menu_small_font,
             fg=UI.TEXT_DIM,
             bg=UI.BG,
@@ -520,13 +533,27 @@ class MasuApp:
             )
             lbl.pack(side="left", expand=True)
             self.ranking_tab_labels.append(lbl)
+        grid_tab_row = tk.Frame(rank_f, bg=UI.BG)
+        grid_tab_row.pack(fill="x", padx=24, pady=(8, 0))
+        self.ranking_grid_tab_labels: list[tk.Label] = []
+        for size in self.grid_sizes:
+            lbl = tk.Label(
+                grid_tab_row,
+                text=grid_label(size),
+                font=self._menu_body_font,
+                fg=UI.TEXT_DIM,
+                bg=UI.BG,
+                padx=10,
+            )
+            lbl.pack(side="left", expand=True)
+            self.ranking_grid_tab_labels.append(lbl)
         table_wrap = tk.Frame(rank_f, bg=UI.MAIN_INNER, padx=12, pady=8)
         table_wrap.pack(fill="both", expand=True, padx=24, pady=8)
         self.ranking_table = LeaderboardTable(table_wrap)
         self.ranking_table.pack(fill="both", expand=True)
         tk.Label(
             rank_f,
-            text="←→ で演算切替　Esc でタイトルへ",
+            text="↑↓ でマス目　←→ で演算　Esc でタイトルへ",
             font=self._menu_small_font,
             fg=UI.TEXT_DIM,
             bg=UI.BG,
@@ -639,6 +666,18 @@ class MasuApp:
                     text=prefix + OPERATION_LABELS[op],
                     fg=UI.CURSOR_GOLD if sel else UI.TEXT,
                 )
+        elif self.current is AppScreen.GRID:
+            op = self.pending_operation
+            self.grid_op_hint_var.set(OPERATION_LABELS[op])
+            for i, (size, lbl) in enumerate(
+                zip(self.grid_sizes, self.grid_menu_labels, strict=True)
+            ):
+                sel = i == self.grid_cursor
+                prefix = "▶ " if sel else "  "
+                lbl.config(
+                    text=prefix + grid_label(size),
+                    fg=UI.CURSOR_GOLD if sel else UI.TEXT,
+                )
         elif self.current is AppScreen.SCORE_RANKING:
             for i, (_op, lbl) in enumerate(
                 zip(self.operations, self.ranking_tab_labels, strict=True)
@@ -647,9 +686,17 @@ class MasuApp:
                 lbl.config(
                     fg=UI.CURSOR_GOLD if sel else UI.TEXT_DIM,
                 )
-            picked = self.operations[self.ranking_operation_cursor]
+            for i, (_size, lbl) in enumerate(
+                zip(self.grid_sizes, self.ranking_grid_tab_labels, strict=True)
+            ):
+                sel = i == self.ranking_grid_cursor
+                lbl.config(
+                    fg=UI.CURSOR_GOLD if sel else UI.TEXT_DIM,
+                )
+            picked_op = self.operations[self.ranking_operation_cursor]
+            picked_grid = self.grid_sizes[self.ranking_grid_cursor]
             self.ranking_table.set_entries(
-                self.score_store.leaderboard(picked)
+                self.score_store.leaderboard(picked_op, picked_grid)
             )
 
     def _nav_vertical(self, delta: int, cursor: int, count: int) -> int:
@@ -657,9 +704,10 @@ class MasuApp:
             return cursor
         return (cursor + delta) % count
 
-    def _start_game(self, operation: Operation) -> None:
+    def _start_game(self, operation: Operation, grid_size: int) -> None:
         self.operation = operation
-        configure_grid(DEFAULT_GRID_SIZE)
+        self.grid_size = grid_size
+        configure_grid(grid_size)
         self.state.operation = operation
         self._reset_result_flow()
         self._result_score_saved = False
@@ -746,6 +794,8 @@ class MasuApp:
             return self._on_key_help(keysym)
         if self.current is AppScreen.MODE:
             return self._on_key_mode(keysym)
+        if self.current is AppScreen.GRID:
+            return self._on_key_grid(keysym)
         if self.current is AppScreen.SCORE_RANKING:
             return self._on_key_ranking(keysym)
         if self.current is not AppScreen.GAME:
@@ -767,6 +817,7 @@ class MasuApp:
                 self._show_screen(AppScreen.HELP)
             else:
                 self.ranking_operation_cursor = 0
+                self.ranking_grid_cursor = 0
                 self._show_screen(AppScreen.SCORE_RANKING)
         elif keysym == "Escape":
             self.root.quit()
@@ -785,18 +836,44 @@ class MasuApp:
             self.mode_cursor = self._nav_vertical(1, self.mode_cursor, len(self.operations))
             self._refresh_menu_highlights()
         elif keysym in ("Return", "KP_Enter"):
-            self._start_game(self.operations[self.mode_cursor])
+            self.pending_operation = self.operations[self.mode_cursor]
+            self.grid_cursor = 0
+            self._show_screen(AppScreen.GRID)
         elif keysym == "Escape":
             self._show_screen(AppScreen.TITLE)
         return "break"
 
-    def _on_key_ranking(self, keysym: str) -> str:
-        n = len(self.operations)
-        if keysym in ("Left", "Up"):
-            self.ranking_operation_cursor = (self.ranking_operation_cursor - 1) % n
+    def _on_key_grid(self, keysym: str) -> str:
+        n = len(self.grid_sizes)
+        if keysym == "Up":
+            self.grid_cursor = self._nav_vertical(-1, self.grid_cursor, n)
             self._refresh_menu_highlights()
-        elif keysym in ("Right", "Down"):
-            self.ranking_operation_cursor = (self.ranking_operation_cursor + 1) % n
+        elif keysym == "Down":
+            self.grid_cursor = self._nav_vertical(1, self.grid_cursor, n)
+            self._refresh_menu_highlights()
+        elif keysym in ("Return", "KP_Enter"):
+            self._start_game(
+                self.pending_operation,
+                self.grid_sizes[self.grid_cursor],
+            )
+        elif keysym == "Escape":
+            self._show_screen(AppScreen.MODE)
+        return "break"
+
+    def _on_key_ranking(self, keysym: str) -> str:
+        n_op = len(self.operations)
+        n_grid = len(self.grid_sizes)
+        if keysym in ("Left",):
+            self.ranking_operation_cursor = (self.ranking_operation_cursor - 1) % n_op
+            self._refresh_menu_highlights()
+        elif keysym in ("Right",):
+            self.ranking_operation_cursor = (self.ranking_operation_cursor + 1) % n_op
+            self._refresh_menu_highlights()
+        elif keysym in ("Up",):
+            self.ranking_grid_cursor = (self.ranking_grid_cursor - 1) % n_grid
+            self._refresh_menu_highlights()
+        elif keysym in ("Down",):
+            self.ranking_grid_cursor = (self.ranking_grid_cursor + 1) % n_grid
             self._refresh_menu_highlights()
         elif keysym == "Escape":
             self._show_screen(AppScreen.TITLE)
@@ -931,7 +1008,6 @@ class MasuApp:
         self.state.operation = self.operation
         self.state.reset()
         self.state.start_monotonic = None
-        self.timer_var.set("0:00.0")
         self.refresh()
         self._run_intro_animation()
 
@@ -1274,10 +1350,10 @@ class MasuApp:
 
     def _tick_timer(self) -> None:
         if not self.state.finished and self.timer_paused_at is None:
-            self.timer_var.set(
+            self.sidebar.time_var.set(
                 GameState.format_time(self.state.elapsed_seconds())
             )
-            self.timer_job = self.root.after(100, self._tick_timer)
+            self.timer_job = self.root.after(10, self._tick_timer)
 
     def _update_end_guide(self) -> None:
         if self.state.finished or self.intro_animating or self.score_animating:
@@ -1313,7 +1389,9 @@ class MasuApp:
             elapsed, correct, play_n, self.operation
         )
         if not self._result_score_saved:
-            self.score_store.record_session(self.operation, self.display_score)
+            self.score_store.record_session(
+                self.operation, self.grid_size, self.display_score
+            )
             self._result_score_saved = True
         self.last_played_at = datetime.now().strftime("%Y/%m/%d %H:%M")
         self.state.finish()
@@ -1322,8 +1400,8 @@ class MasuApp:
         if self.timer_job:
             self.root.after_cancel(self.timer_job)
             self.timer_job = None
-        self.timer_var.set(GameState.format_time(self.state.elapsed_seconds()))
         self.guide_var.set("")
+        self._update_sidebar()
         self.score_marks = {}
         self.score_animating = True
         self._score_gen += 1
@@ -1365,7 +1443,7 @@ class MasuApp:
 
         if self.result_view == "confirm":
             entries, rank = preview_after_insert(
-                self.score_store.leaderboard(self.operation),
+                self.score_store.leaderboard(self.operation, self.grid_size),
                 name=self.entry_name.strip() or "-",
                 score=self.display_score,
                 played_at=self.last_played_at,
@@ -1402,7 +1480,7 @@ class MasuApp:
     def _begin_score_record(self) -> None:
         self.entry_name = ""
         _, rank = preview_after_insert(
-            self.score_store.leaderboard(self.operation),
+            self.score_store.leaderboard(self.operation, self.grid_size),
             name="-",
             score=self.display_score,
             played_at=self.last_played_at,
@@ -1418,6 +1496,7 @@ class MasuApp:
         if name:
             self.score_store.add_leaderboard_entry(
                 self.operation,
+                self.grid_size,
                 name,
                 self.display_score,
                 played_at=self.last_played_at,
@@ -1450,15 +1529,20 @@ class MasuApp:
         elapsed = s.elapsed_seconds() if s.start_monotonic is not None else 0.0
         if s.finished:
             elapsed = s.elapsed_seconds()
-        time_ratio = min(1.0, elapsed / TIME_BAR_CAP_SEC)
+        time_text = GameState.format_time(elapsed)
         self.sidebar.update_display(
-            mode_en=OPERATION_LABELS[self.operation],
-            high_score=self.score_store.high_score(self.operation),
+            mode_en=(
+                f"{OPERATION_LABELS[self.operation]} "
+                f"{grid_label(self.grid_size)}"
+            ),
+            high_score=self.score_store.high_score(
+                self.operation, self.grid_size
+            ),
             session_score=self.display_score,
             correct_text=correct_text,
             answer_stars=answer_stars,
             skill_stars=skill_stars,
-            time_ratio=time_ratio,
+            time_text=time_text,
         )
 
     def _style_label(
@@ -1487,8 +1571,6 @@ class MasuApp:
             return
         s = self.state
         self._update_end_guide()
-        if not s.finished:
-            self.timer_var.set(GameState.format_time(s.elapsed_seconds()))
         self._update_sidebar()
 
         size = game_mod.GRID_SIZE

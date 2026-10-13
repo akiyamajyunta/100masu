@@ -22,6 +22,10 @@ class StatusSidebar(tk.Frame):
         self.mode_font = tkfont.Font(family="Yu Gothic UI", size=22, weight="bold")
         self.label_font = tkfont.Font(family="Yu Gothic UI", size=11)
         self.value_font = tkfont.Font(family="Yu Gothic UI", size=16, weight="bold")
+        try:
+            self.timer_font = tkfont.Font(family="Consolas", size=26, weight="bold")
+        except tk.TclError:
+            self.timer_font = tkfont.Font(family="Courier New", size=26, weight="bold")
 
         self.mode_var = tk.StringVar(value="たし算")
         tk.Label(
@@ -46,19 +50,25 @@ class StatusSidebar(tk.Frame):
 
         tk.Label(
             inner,
-            text="時間",
+            text="タイマー",
             font=self.label_font,
             fg=T.TEXT,
             bg=T.STATUS_INNER,
             anchor="w",
-        ).pack(fill="x", pady=(10, 4))
-        bar_bg = tk.Frame(inner, bg=T.GAUGE_BG, height=16)
-        bar_bg.pack(fill="x")
-        bar_bg.pack_propagate(False)
-        self.time_bar = tk.Frame(bar_bg, bg=T.GAUGE_TIMER, height=12)
-        self.time_bar.place(relx=0, rely=0.5, anchor="w", relheight=0.75, relwidth=0.0)
-
-        tk.Frame(inner, bg=T.STATUS_INNER, height=8).pack()
+        ).pack(fill="x", pady=(10, 2))
+        self.time_var = tk.StringVar(value="0:00.00")
+        timer_box = tk.Frame(inner, bg=T.STATUS_INNER, height=38)
+        timer_box.pack(fill="x", pady=(0, 8))
+        timer_box.pack_propagate(False)
+        tk.Label(
+            timer_box,
+            textvariable=self.time_var,
+            font=self.timer_font,
+            fg=T.GAUGE_TIMER,
+            bg=T.STATUS_INNER,
+            anchor="e",
+            width=9,
+        ).pack(expand=True, fill="both", anchor="e")
 
         self.restart_btn = tk.Button(
             inner,
@@ -128,7 +138,7 @@ class StatusSidebar(tk.Frame):
         correct_text: str,
         answer_stars: int,
         skill_stars: int,
-        time_ratio: float,
+        time_text: str,
     ) -> None:
         self.mode_var.set(mode_en)
         self.high_var.set(f"{high_score:,}")
@@ -136,5 +146,4 @@ class StatusSidebar(tk.Frame):
         self.correct_var.set(correct_text)
         self.answer_stars_var.set(self._stars_text(answer_stars))
         self.skill_stars_var.set(self._stars_text(skill_stars))
-        ratio = max(0.0, min(1.0, time_ratio))
-        self.time_bar.place(relwidth=max(0.02, ratio))
+        self.time_var.set(time_text)

@@ -11,24 +11,26 @@ from typing import Dict, Tuple
 
 from masu.config import Operation
 
-# デフォルトは 4×4（開発）。起動時に configure_grid で変更
-GRID_SIZE = 4
+# 入力マス数（辺）。外枠 GRID_SIZE = PLAY_SIZE + 1（ヘッダー1行1列）
+PLAY_SIZE = 4
+GRID_SIZE = PLAY_SIZE + 1
 
 PLAY_ROW_MIN = 1
 PLAY_COL_MIN = 1
-PLAY_ROW_MAX = GRID_SIZE - 1
-PLAY_COL_MAX = GRID_SIZE - 1
-PLAY_CELL_COUNT = (GRID_SIZE - 1) ** 2
+PLAY_ROW_MAX = PLAY_SIZE
+PLAY_COL_MAX = PLAY_SIZE
+PLAY_CELL_COUNT = PLAY_SIZE * PLAY_SIZE
 
 
-def configure_grid(size: int) -> None:
-    """グリッドサイズを変更し、プレイ領域定数を更新する。"""
-    global GRID_SIZE, PLAY_ROW_MAX, PLAY_COL_MAX, PLAY_CELL_COUNT
-    n = max(3, min(10, int(size)))
-    GRID_SIZE = n
-    PLAY_ROW_MAX = GRID_SIZE - 1
-    PLAY_COL_MAX = GRID_SIZE - 1
-    PLAY_CELL_COUNT = (GRID_SIZE - 1) ** 2
+def configure_grid(play_size: int) -> None:
+    """入力できるマス目（例: 4 → 4×4=16マス）。ヘッダー行・列を除く。"""
+    global GRID_SIZE, PLAY_SIZE, PLAY_ROW_MAX, PLAY_COL_MAX, PLAY_CELL_COUNT
+    n = max(4, min(12, int(play_size)))
+    PLAY_SIZE = n
+    GRID_SIZE = n + 1
+    PLAY_ROW_MAX = n
+    PLAY_COL_MAX = n
+    PLAY_CELL_COUNT = n * n
 
 
 PENALTY_WRONG_SECONDS = 10
@@ -43,18 +45,20 @@ _INT_INPUT_RE = re.compile(r"^-?\d+$")
 
 
 def header_reveal_cells() -> list[tuple[int, int]]:
+    """開始アニメ: 縦ヘッダー（左列）→ 横ヘッダー（上段）。"""
     cells: list[tuple[int, int]] = []
-    for col in range(1, GRID_SIZE):
-        cells.append((0, col))
     for row in range(1, GRID_SIZE):
         cells.append((row, 0))
+    for col in range(1, GRID_SIZE):
+        cells.append((0, col))
     return cells
 
 
 def play_cells_score_order() -> list[tuple[int, int]]:
+    """採点アニメ: 列優先（縦方向に下へ）→ 次の列。"""
     cells: list[tuple[int, int]] = []
-    for row in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
-        for col in range(PLAY_COL_MIN, PLAY_COL_MAX + 1):
+    for col in range(PLAY_COL_MIN, PLAY_COL_MAX + 1):
+        for row in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
             cells.append((row, col))
     return cells
 
@@ -103,15 +107,25 @@ class GameState:
     finished: bool = False
 
     @staticmethod
-    def random_digit() -> int:
-        return random.randint(1, 9)
+    def _unique_header_digits(count: int) -> list[int]:
+        pool_max = max(9, count)
+        pool = list(range(1, pool_max + 1))
+        if count <= len(pool):
+            return random.sample(pool, count)
+        head = random.sample(pool, len(pool))
+        tail = random.choices(pool, k=count - len(pool))
+        return head + tail
 
     def reset(self) -> None:
         self.header = [[0] * GRID_SIZE for _ in range(GRID_SIZE)]
+        col_count = GRID_SIZE - 1
+        row_count = GRID_SIZE - 1
+        top_digits = self._unique_header_digits(col_count)
+        left_digits = self._unique_header_digits(row_count)
         for c in range(1, GRID_SIZE):
-            self.header[0][c] = self.random_digit()
+            self.header[0][c] = top_digits[c - 1]
         for r in range(1, GRID_SIZE):
-            self.header[r][0] = self.random_digit()
+            self.header[r][0] = left_digits[r - 1]
 
         self.cells = {}
         for r in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
@@ -145,11 +159,14 @@ class GameState:
 
     @staticmethod
     def format_time(seconds: float) -> str:
-        minutes = int(seconds // 60)
-        sec = seconds % 60
+        """分:秒.センチ秒（0.01秒単位）。"""
+        t = max(0.0, seconds)
+        centis_total = int(round(t * 100))
+        minutes, rem = divmod(centis_total, 6000)
+        sec, centis = divmod(rem, 100)
         if minutes > 0:
-            return f"{minutes}:{sec:04.1f}"
-        return f"0:{sec:04.1f}"
+            return f"{minutes}:{sec:02d}.{centis:02d}"
+        return f"0:{sec:02d}.{centis:02d}"
 
     def correct_count(self) -> int:
         return sum(1 for c in self.cells.values() if c.state == CellState.CORRECT)
@@ -303,12 +320,13 @@ class GameState:
         parsed = self.parse_answer(candidate, self.operation)
         if parsed is None:
             return False
+        edge = PLAY_SIZE
         if self.operation is Operation.ADD:
-            return 0 <= parsed <= 18
+            return 0 <= parsed <= edge * 2
         if self.operation is Operation.MUL:
-            return 0 <= parsed <= 81
+            return 0 <= parsed <= edge * edge
         if self.operation is Operation.SUB:
-            return -8 <= parsed <= 8
+            return -edge <= parsed <= edge
         return 0.0 <= parsed <= 9.0
 
     def handle_char(self, ch: str) -> None:
