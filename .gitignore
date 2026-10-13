@@ -4,3 +4,16 @@ __pycache__/
 _forkid_ref/
 .venv/
 venv/
+# Hub で誤作成した Unity 6 サンプル（移植版は Unity/ 直下の Assets 等のみ）
+/100masu/
+Unity/100masu/
+Unity/My project/
+
+# Unity 生成物
+**/[Ll]ibrary/
+**/[Tt]emp/
+**/[Ll]ogs/
+**/[Uu]ser[Ss]ettings/
+**/[Oo]bj/
+**/[Bb]uild/
+**/[Bb]uilds/

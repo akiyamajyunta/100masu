@@ -1,0 +1,158 @@
+using System.Collections.Generic;
+using Masu.Core;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace Masu.UI
+{
+    public sealed class MasuGridView
+    {
+        private readonly Transform _root;
+        private readonly GridLayoutGroup _layout;
+        private readonly Dictionary<(int r, int c), CellWidgets> _cells = new();
+        private float _cellSize = 56f;
+
+        private sealed class CellWidgets
+        {
+            public Image Bg;
+            public Text Label;
+            public Text Mark;
+            public bool IsHeader;
+        }
+
+        public MasuGridView(Transform parent)
+        {
+            var go = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            _root = go.transform;
+            _layout = go.GetComponent<GridLayoutGroup>();
+            _layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            _layout.spacing = new Vector2(2, 2);
+            _layout.childAlignment = TextAnchor.MiddleCenter;
+        }
+
+        public void Rebuild(GridConfig grid)
+        {
+            foreach (Transform ch in _root)
+                Object.Destroy(ch.gameObject);
+            _cells.Clear();
+
+            var n = grid.GridSize;
+            _cellSize = Mathf.Clamp(720f / n, 28f, 72f);
+            _layout.constraintCount = n;
+            _layout.cellSize = new Vector2(_cellSize, _cellSize);
+
+            var rt = _root.GetComponent<RectTransform>();
+            var total = n * _cellSize + (n - 1) * _layout.spacing.x;
+            rt.sizeDelta = new Vector2(total, total);
+
+            for (var row = 0; row < n; row++)
+            for (var col = 0; col < n; col++)
+            {
+                var isCorner = row == 0 && col == 0;
+                var isHeader = row == 0 || col == 0;
+                if (isCorner)
+                {
+                    CreateCell(row, col, MasuTheme.PlusBg, true, "＋");
+                    continue;
+                }
+                var bg = isHeader ? MasuTheme.HeaderSlot : MasuTheme.CellEmpty;
+                CreateCell(row, col, bg, isHeader, "");
+            }
+        }
+
+        private void CreateCell(int row, int col, Color bg, bool isHeader, string initial)
+        {
+            var go = new GameObject($"c_{row}_{col}", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(_root, false);
+            var image = go.GetComponent<Image>();
+            image.color = bg;
+
+            var label = MasuUiFactory.CreateText(go.transform, "Label", initial, isHeader ? 22 : 20,
+                MasuTheme.Text, TextAnchor.MiddleCenter);
+            MasuUiFactory.Stretch(label.rectTransform, 2, 2, 2, 2);
+
+            var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", 28, MasuTheme.CorrectMark,
+                TextAnchor.MiddleCenter);
+            MasuUiFactory.Stretch(mark.rectTransform);
+            mark.gameObject.SetActive(false);
+
+            _cells[(row, col)] = new CellWidgets
+            {
+                Bg = image,
+                Label = label,
+                Mark = mark,
+                IsHeader = isHeader
+            };
+        }
+
+        public void Refresh(
+            GameState state,
+            HashSet<(int r, int c)> revealedHeaders,
+            Dictionary<(int r, int c), bool> scoreMarks,
+            bool introAnimating,
+            bool scoreAnimating)
+        {
+            var grid = state.Grid;
+            var opSymbol = state.Operation.Symbol();
+            _cells[(0, 0)].Label.text = opSymbol;
+
+            for (var row = 0; row < grid.GridSize; row++)
+            for (var col = 0; col < grid.GridSize; col++)
+            {
+                if (!_cells.TryGetValue((row, col), out var w)) continue;
+                if (w.IsHeader)
+                {
+                    var revealed = !introAnimating || revealedHeaders.Contains((row, col));
+                    if (row == 0 && col == 0) continue;
+                    if (!revealed)
+                    {
+                        w.Label.text = "";
+                        w.Bg.color = MasuTheme.HeaderSlot;
+                    }
+                    else
+                    {
+                        w.Label.text = state.Header[row][col].ToString();
+                        w.Bg.color = row == 0 || col == 0 ? MasuTheme.HeaderNum : MasuTheme.HeaderSlot;
+                    }
+                    w.Mark.gameObject.SetActive(false);
+                    continue;
+                }
+
+                if (!grid.IsPlayCell(row, col)) continue;
+
+                var focused = row == state.FocusRow && col == state.FocusCol && !state.Finished;
+                w.Bg.color = focused ? MasuTheme.FocusRing * 0.35f + MasuTheme.CellEmpty * 0.65f : MasuTheme.CellEmpty;
+
+                if (scoreMarks != null && scoreMarks.TryGetValue((row, col), out var ok))
+                {
+                    w.Mark.text = ok ? "○" : "×";
+                    w.Mark.color = ok ? MasuTheme.CorrectMark : MasuTheme.WrongMark;
+                    w.Mark.gameObject.SetActive(true);
+                }
+                else
+                {
+                    w.Mark.gameObject.SetActive(false);
+                }
+
+                w.Label.text = state.PlayCellDisplay(row, col);
+            }
+        }
+
+        public void PopCell(int row, int col, float scale)
+        {
+            if (!_cells.TryGetValue((row, col), out var w)) return;
+            w.Label.transform.localScale = Vector3.one * scale;
+        }
+
+        public void ResetPopScales()
+        {
+            foreach (var w in _cells.Values)
+                w.Label.transform.localScale = Vector3.one;
+        }
+    }
+}
