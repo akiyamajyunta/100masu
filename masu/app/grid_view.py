@@ -160,6 +160,25 @@ class GridViewMixin:
         x, y, w, h = self._grid_cell_rect(gr, gc)
         return pad + x, pad + y, w, h
 
+    def _clear_grid_pop_layers(self) -> None:
+        """grid_wrap 上のポップ用オーバーレイをすべて除去（盤本体は残す）。"""
+        if self.grid_frame is None or not hasattr(self, "grid_wrap"):
+            return
+        keep = self.grid_frame
+        for child in list(self.grid_wrap.winfo_children()):
+            if child is keep:
+                continue
+            try:
+                child.destroy()
+            except tk.TclError:
+                pass
+        try:
+            if keep.winfo_exists():
+                keep.lift()
+            self.grid_wrap.update_idletasks()
+        except tk.TclError:
+            pass
+
     def _play_canvas_center(self, cv: tk.Canvas) -> tuple[int, int]:
         cv.update_idletasks()
         w = cv.winfo_width()
@@ -234,6 +253,35 @@ class GridViewMixin:
         )
         lbl.image = None
 
+    def _refresh_header_cell(self, gr: int, gc: int) -> None:
+        if (gr, gc) not in self.labels:
+            return
+        s = self.state
+        lbl = self.labels[(gr, gc)]
+        if gr == 0 and gc == 0:
+            sym = OPERATION_SYMBOLS[self.operation]
+            self._style_label(lbl, sym, PLUS_BG, PLUS_FG)
+        elif gr == 0:
+            if (gr, gc) in self.revealed_headers:
+                self._style_label(
+                    lbl,
+                    str(s.header[0][gc]),
+                    HEADER_NUM,
+                    HEADER_NUM_FG,
+                )
+            else:
+                self._style_label(lbl, "", HEADER_SLOT, HEADER_SLOT_FG)
+        elif gc == 0:
+            if (gr, gc) in self.revealed_headers:
+                self._style_label(
+                    lbl,
+                    str(s.header[gr][0]),
+                    HEADER_NUM,
+                    HEADER_NUM_FG,
+                )
+            else:
+                self._style_label(lbl, "", HEADER_SLOT, HEADER_SLOT_FG)
+
     def refresh(self) -> None:
         if not self.play_canvases:
             return
@@ -247,31 +295,7 @@ class GridViewMixin:
                 if gr >= 1 and gc >= 1:
                     self._draw_play_cell(gr, gc)
                     continue
-
-                lbl = self.labels[(gr, gc)]
-                if gr == 0 and gc == 0:
-                    sym = OPERATION_SYMBOLS[self.operation]
-                    self._style_label(lbl, sym, PLUS_BG, PLUS_FG)
-                elif gr == 0:
-                    if (gr, gc) in self.revealed_headers:
-                        self._style_label(
-                            lbl,
-                            str(s.header[0][gc]),
-                            HEADER_NUM,
-                            HEADER_NUM_FG,
-                        )
-                    else:
-                        self._style_label(lbl, "", HEADER_SLOT, HEADER_SLOT_FG)
-                elif gc == 0:
-                    if (gr, gc) in self.revealed_headers:
-                        self._style_label(
-                            lbl,
-                            str(s.header[gr][0]),
-                            HEADER_NUM,
-                            HEADER_NUM_FG,
-                        )
-                    else:
-                        self._style_label(lbl, "", HEADER_SLOT, HEADER_SLOT_FG)
+                self._refresh_header_cell(gr, gc)
 
         self._sync_focus_overlay()
 

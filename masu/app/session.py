@@ -158,6 +158,7 @@ class SessionMixin:
         self._score_scale_ms, self._score_stagger_ms = score_anim_timings(
             game_mod.PLAY_CELL_COUNT
         )
+        self._clear_grid_pop_layers()
         self.refresh()
         self._run_score_animation()
 

@@ -96,6 +96,7 @@ class AnimationsMixin:
         self._intro_scale_ms, self._intro_stagger_ms = intro_anim_timings(
             len(header_reveal_cells())
         )
+        self._clear_grid_pop_layers()
         self.refresh()
         self._run_intro_animation()
 
@@ -106,6 +107,7 @@ class AnimationsMixin:
             if gen != self._intro_gen:
                 return
             self.intro_animating = False
+            self._clear_grid_pop_layers()
             self.state.start_monotonic = time.monotonic()
             self._tick_timer()
             self.refresh()
@@ -118,7 +120,7 @@ class AnimationsMixin:
             if gen != self._intro_gen:
                 return
             self.revealed_headers.add((gr, gc))
-            self.refresh()
+            self._refresh_header_cell(gr, gc)
             self.root.after(
                 self._intro_stagger_ms,
                 lambda n=index: self._run_intro_animation(n + 1),
@@ -147,7 +149,7 @@ class AnimationsMixin:
         tile_top_bg: str,
         tile_bottom_bg: str,
         fg: str,
-        glow_color: str,
+        glow_color: str,  # 互換用（白 glow は Windows で残像が出るため未使用）
         scale_levels: tuple[float, ...],
         scale_ms: int,
         is_stale: Callable[[], bool],
@@ -157,7 +159,6 @@ class AnimationsMixin:
         pop_root = self.grid_wrap
         x, y, w, h = self._grid_cell_rect_in_wrap(gr, gc)
 
-        glow = tk.Label(pop_root, bg=glow_color, borderwidth=0)
         tile_wrap = tk.Frame(
             pop_root,
             bg=CELL_BORDER,
@@ -192,17 +193,41 @@ class AnimationsMixin:
         if mark_image is None:
             tile_bottom.pack(fill="x")
 
-        def cleanup() -> None:
-            glow.destroy()
-            tile_wrap.destroy()
+        pop_state = {"done": False, "after": None}
+
+        def cancel_scheduled() -> None:
+            job = pop_state["after"]
+            if not job:
+                return
+            try:
+                self.root.after_cancel(job)
+            except tk.TclError:
+                pass
+            pop_state["after"] = None
+
+        def cleanup(*, invoke_complete: bool = False) -> None:
+            if pop_state["done"]:
+                return
+            pop_state["done"] = True
+            cancel_scheduled()
+            try:
+                if tile_wrap.winfo_exists():
+                    tile_wrap.place_forget()
+                    tile_wrap.destroy()
+            except tk.TclError:
+                pass
+            self._clear_grid_pop_layers()
+            if invoke_complete and not is_stale():
+                on_complete()
 
         def show_scale(scale_index: int = 0) -> None:
+            if pop_state["done"]:
+                return
             if is_stale():
                 cleanup()
                 return
             if scale_index >= len(scale_levels):
-                cleanup()
-                on_complete()
+                cleanup(invoke_complete=True)
                 return
 
             scale = scale_levels[scale_index]
@@ -211,23 +236,11 @@ class AnimationsMixin:
             tile_x = x + (w - tile_w) // 2
             tile_y = y + (h - tile_h) // 2
 
-            glow_pad = max(2, int(6 * (scale - 1.0)))
-            if scale > 1.02:
-                glow.place(
-                    x=tile_x - glow_pad,
-                    y=tile_y - glow_pad,
-                    width=tile_w + glow_pad * 2,
-                    height=tile_h + glow_pad * 2,
-                )
-                glow.lift()
-            else:
-                glow.place_forget()
-
             tile_wrap.place(x=tile_x, y=tile_y, width=tile_w, height=tile_h)
             tile_wrap.lift()
-            self.root.after(
+            pop_state["after"] = self.root.after(
                 scale_ms,
-                lambda n=scale_index: show_scale(n + 1),
+                lambda n=scale_index + 1: show_scale(n),
             )
 
         show_scale(0)
@@ -242,6 +255,7 @@ class AnimationsMixin:
             if gen != self._score_gen:
                 return
             self.score_animating = False
+            self._clear_grid_pop_layers()
             self.refresh()
             self._show_score_results()
             return
@@ -256,7 +270,7 @@ class AnimationsMixin:
             if gen != self._score_gen:
                 return
             self.score_marks[(row, col)] = correct
-            self.refresh()
+            self._draw_play_cell(row, col)
             self.root.after(
                 self._score_stagger_ms,
                 lambda n=index: self._run_score_animation(n + 1),
