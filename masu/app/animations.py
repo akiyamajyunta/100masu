@@ -1,0 +1,279 @@
+"""MasuApp mixin — アニメーション."""
+
+from __future__ import annotations
+
+import time
+import tkinter as tk
+from collections.abc import Callable
+from datetime import datetime
+from tkinter import font as tkfont
+from tkinter import messagebox
+
+import game as game_mod
+from game import (
+    PENALTY_EMPTY_SECONDS,
+    CellState,
+    GameState,
+    configure_grid,
+    header_reveal_cells,
+    play_cells_score_order,
+)
+from masu import theme as UI
+from masu.anim_timings import (
+    INTRO_GLOW,
+    INTRO_SCALE_LEVELS,
+    INTRO_SCALE_MS,
+    INTRO_STAGGER_MS,
+    SCORE_GLOW,
+    SCORE_SCALE_LEVELS,
+    SCORE_SCALE_MS,
+    SCORE_STAGGER_MS,
+    intro_anim_timings,
+    score_anim_timings,
+)
+from masu.config import (
+    OPERATION_LABELS,
+    OPERATION_RANKING_TAB,
+    OPERATION_SYMBOLS,
+    STAR_GAUGE_MAX,
+    Operation,
+    grid_label,
+)
+from masu.grid_theme import (
+    CELL_BORDER,
+    CELL_EMPTY,
+    CELL_EMPTY_FG,
+    CELL_SIZE,
+    FOCUS_INSET,
+    FOCUS_PULSE_MS,
+    FOCUS_PULSE_STEPS,
+    FOCUS_RING_BRIGHT,
+    FOCUS_RING_DIM,
+    FOCUS_SCALE,
+    FONT_FAMILY,
+    HEADER_NUM,
+    HEADER_NUM_FG,
+    HEADER_SLOT,
+    HEADER_SLOT_FG,
+    HEADER_TILE_BOTTOM,
+    HEADER_TILE_TOP,
+    PLUS_BG,
+    PLUS_FG,
+    PROGRESS_FG,
+    TEXT_MUTED,
+)
+from masu.leaderboard import format_accuracy, format_score, preview_after_insert
+from masu.menu_views import LeaderboardTable, NameKeyboardView
+from masu.name_keyboard import (
+    ENTRY_NAME_MAX_LEN,
+    KEYBOARD_ROWS,
+    NameKeyboard,
+    format_name_slots,
+)
+from masu.mark_assets import load_mark_photos
+from masu.scoring import accuracy_percent, compute_session_score
+from masu.screens import RESULT_MENU_ITEMS, AppScreen
+
+
+class AnimationsMixin:
+    def restart(self) -> None:
+        self._intro_gen += 1
+        if self.timer_job:
+            self.root.after_cancel(self.timer_job)
+            self.timer_job = None
+        self.timer_paused_at = None
+        self.intro_animating = True
+        self.revealed_headers = set()
+        self.score_animating = False
+        self.score_marks = {}
+        self._score_gen += 1
+        self.display_score = 0
+        self.last_accuracy = 0.0
+        self._stop_focus_blink()
+        self.state.operation = self.operation
+        self.state.reset()
+        self.state.start_monotonic = None
+        self._intro_scale_ms, self._intro_stagger_ms = intro_anim_timings(
+            len(header_reveal_cells())
+        )
+        self.refresh()
+        self._run_intro_animation()
+
+    def _run_intro_animation(self, index: int = 0) -> None:
+        gen = self._intro_gen
+        cells = header_reveal_cells()
+        if index >= len(cells):
+            if gen != self._intro_gen:
+                return
+            self.intro_animating = False
+            self.state.start_monotonic = time.monotonic()
+            self._tick_timer()
+            self.refresh()
+            return
+
+        gr, gc = cells[index]
+        text = str(self.state.header[gr][gc])
+
+        def on_pop_complete() -> None:
+            if gen != self._intro_gen:
+                return
+            self.revealed_headers.add((gr, gc))
+            self.refresh()
+            self.root.after(
+                self._intro_stagger_ms,
+                lambda n=index: self._run_intro_animation(n + 1),
+            )
+
+        self._animate_tile_pop(
+            gr,
+            gc,
+            text,
+            tile_top_bg=HEADER_TILE_TOP,
+            tile_bottom_bg=HEADER_TILE_BOTTOM,
+            fg=HEADER_NUM_FG,
+            glow_color=INTRO_GLOW,
+            scale_levels=INTRO_SCALE_LEVELS,
+            scale_ms=self._intro_scale_ms,
+            is_stale=lambda: gen != self._intro_gen,
+            on_complete=on_pop_complete,
+        )
+
+    def _animate_tile_pop(
+        self,
+        gr: int,
+        gc: int,
+        text: str,
+        *,
+        tile_top_bg: str,
+        tile_bottom_bg: str,
+        fg: str,
+        glow_color: str,
+        scale_levels: tuple[float, ...],
+        scale_ms: int,
+        is_stale: Callable[[], bool],
+        on_complete: Callable[[], None],
+        mark_image: tk.PhotoImage | None = None,
+    ) -> None:
+        pop_root = self.grid_wrap
+        x, y, w, h = self._grid_cell_rect_in_wrap(gr, gc)
+
+        glow = tk.Label(pop_root, bg=glow_color, borderwidth=0)
+        tile_wrap = tk.Frame(
+            pop_root,
+            bg=CELL_BORDER,
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        tile_top = tk.Label(
+            tile_wrap,
+            text=text,
+            image=mark_image,
+            compound=tk.CENTER if mark_image is not None else tk.NONE,
+            font=self.cell_font,
+            bg=tile_top_bg,
+            fg=fg,
+            borderwidth=0,
+            relief="flat",
+            anchor="center",
+            justify="center",
+        )
+        if mark_image is not None:
+            tile_top.image = mark_image
+        tile_bottom = tk.Label(
+            tile_wrap,
+            text="",
+            font=self.cell_font,
+            bg=tile_bottom_bg,
+            borderwidth=0,
+            relief="flat",
+            height=0 if mark_image is not None else 1,
+        )
+        tile_top.pack(fill="both", expand=True)
+        if mark_image is None:
+            tile_bottom.pack(fill="x")
+
+        def cleanup() -> None:
+            glow.destroy()
+            tile_wrap.destroy()
+
+        def show_scale(scale_index: int = 0) -> None:
+            if is_stale():
+                cleanup()
+                return
+            if scale_index >= len(scale_levels):
+                cleanup()
+                on_complete()
+                return
+
+            scale = scale_levels[scale_index]
+            tile_w = max(w, int(w * scale))
+            tile_h = max(h, int(h * scale))
+            tile_x = x + (w - tile_w) // 2
+            tile_y = y + (h - tile_h) // 2
+
+            glow_pad = max(2, int(6 * (scale - 1.0)))
+            if scale > 1.02:
+                glow.place(
+                    x=tile_x - glow_pad,
+                    y=tile_y - glow_pad,
+                    width=tile_w + glow_pad * 2,
+                    height=tile_h + glow_pad * 2,
+                )
+                glow.lift()
+            else:
+                glow.place_forget()
+
+            tile_wrap.place(x=tile_x, y=tile_y, width=tile_w, height=tile_h)
+            tile_wrap.lift()
+            self.root.after(
+                scale_ms,
+                lambda n=scale_index: show_scale(n + 1),
+            )
+
+        show_scale(0)
+
+    def _cell_is_correct(self, row: int, col: int) -> bool:
+        return self.state.cells[(row, col)].state == CellState.CORRECT
+
+    def _run_score_animation(self, index: int = 0) -> None:
+        gen = self._score_gen
+        order = play_cells_score_order()
+        if index >= len(order):
+            if gen != self._score_gen:
+                return
+            self.score_animating = False
+            self.refresh()
+            self._show_score_results()
+            return
+
+        row, col = order[index]
+        correct = self._cell_is_correct(row, col)
+        answer = self.state.cells[(row, col)].value
+        mark_image = self._mark_maru if correct else self._mark_batsu
+        tile_bg, sym_fg = CELL_EMPTY, CELL_EMPTY_FG
+
+        def on_pop_complete() -> None:
+            if gen != self._score_gen:
+                return
+            self.score_marks[(row, col)] = correct
+            self.refresh()
+            self.root.after(
+                self._score_stagger_ms,
+                lambda n=index: self._run_score_animation(n + 1),
+            )
+
+        self._animate_tile_pop(
+            row,
+            col,
+            answer,
+            tile_top_bg=tile_bg,
+            tile_bottom_bg=tile_bg,
+            fg=sym_fg,
+            glow_color=SCORE_GLOW,
+            scale_levels=SCORE_SCALE_LEVELS,
+            scale_ms=self._score_scale_ms,
+            is_stale=lambda: gen != self._score_gen,
+            on_complete=on_pop_complete,
+            mark_image=mark_image,
+        )
+
