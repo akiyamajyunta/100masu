@@ -104,6 +104,7 @@ class GameState:
     penalty_count: int = 0
     penalty_seconds: int = 0
     start_monotonic: float | None = None
+    scoring_play_elapsed: float | None = None
     finished: bool = False
 
     @staticmethod
@@ -138,6 +139,7 @@ class GameState:
         self.penalty_count = 0
         self.penalty_seconds = 0
         self.start_monotonic = time.monotonic()
+        self.scoring_play_elapsed = None
         self.finished = False
         self.sync_buffer_from_focus()
 
@@ -153,15 +155,42 @@ class GameState:
         return compute_expected(a, b, self.operation)
 
     def elapsed_seconds(self) -> float:
+        if self.scoring_play_elapsed is not None:
+            return self.scoring_play_elapsed + self.penalty_seconds
         if self.start_monotonic is None:
             return 0.0
         return (time.monotonic() - self.start_monotonic) + self.penalty_seconds
 
+    def freeze_scoring_clock(self) -> None:
+        """採点アニメ開始時: プレイ経過だけ固定し、ペナルティは後から加算。"""
+        if self.start_monotonic is None:
+            self.scoring_play_elapsed = 0.0
+        else:
+            self.scoring_play_elapsed = max(
+                0.0, time.monotonic() - self.start_monotonic
+            )
+
+    def grade_cell_at_score(self, row: int, col: int) -> bool:
+        """採点アニメ用: 1 マスを採点し、不正解・未入力ならペナルティを即加算。"""
+        cell = self.cells.get((row, col))
+        if cell is None:
+            return False
+        if not cell.value.strip():
+            cell.value = ""
+            cell.state = CellState.EMPTY
+            self.apply_empty_penalty(cell)
+            return False
+        self.validate_cell(row, col, cell.value)
+        return cell.state == CellState.CORRECT
+
+    @staticmethod
+    def elapsed_to_centis(seconds: float) -> int:
+        return int(round(max(0.0, seconds) * 100))
+
     @staticmethod
     def format_time(seconds: float) -> str:
         """分:秒.センチ秒（0.01秒単位）。"""
-        t = max(0.0, seconds)
-        centis_total = int(round(t * 100))
+        centis_total = GameState.elapsed_to_centis(seconds)
         minutes, rem = divmod(centis_total, 6000)
         sec, centis = divmod(rem, 100)
         if minutes > 0:

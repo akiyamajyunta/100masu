@@ -81,6 +81,8 @@ class MasuApp(
         self._intro_stagger_ms = INTRO_STAGGER_MS
         self._score_scale_ms = SCORE_SCALE_MS
         self._score_stagger_ms = SCORE_STAGGER_MS
+        self._score_timer_display_centis: int | None = None
+        self._score_timer_roll: int = 0
         self.cell_font: tkfont.Font | None = None
         self.focus_blink_job: str | None = None
         self.focus_overlay_active = False

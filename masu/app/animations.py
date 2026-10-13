@@ -87,6 +87,8 @@ class AnimationsMixin:
         self._score_gen += 1
         self.display_score = 0
         self.last_accuracy = 0.0
+        self._score_timer_display_centis = None
+        self._score_timer_roll = 0
         self._stop_focus_blink()
         self.state.operation = self.operation
         self.state.reset()
@@ -242,9 +244,6 @@ class AnimationsMixin:
 
         show_scale(0)
 
-    def _cell_is_correct(self, row: int, col: int) -> bool:
-        return self.state.cells[(row, col)].state == CellState.CORRECT
-
     def _run_score_animation(self, index: int = 0) -> None:
         gen = self._score_gen
         order = play_cells_score_order()
@@ -254,11 +253,14 @@ class AnimationsMixin:
             self.score_animating = False
             self._clear_grid_pop_layers()
             self.refresh()
+            self._finalize_score_after_animation()
             self._show_score_results()
             return
 
         row, col = order[index]
-        correct = self._cell_is_correct(row, col)
+        correct = self.state.grade_cell_at_score(row, col)
+        self._update_scoring_timer_display()
+        self._update_sidebar()
         answer = self.state.cells[(row, col)].value
         mark_image = self._mark_maru if correct else self._mark_batsu
         tile_bg, sym_fg = CELL_EMPTY, CELL_EMPTY_FG

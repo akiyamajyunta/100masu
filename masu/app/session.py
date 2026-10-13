@@ -74,6 +74,9 @@ from masu.mark_assets import load_mark_photos
 from masu.scoring import accuracy_percent, compute_session_score
 from masu.screens import RESULT_MENU_ITEMS, AppScreen
 
+SCORE_TIMER_TICK_MS = 10
+PENALTY_TIME_ANIM_SEC = 0.45
+
 
 class SessionMixin:
     def _pause_timer(self) -> None:
@@ -99,11 +102,63 @@ class SessionMixin:
         self._tick_timer()
 
     def _tick_timer(self) -> None:
+        if self.score_animating:
+            self._advance_score_timer_display()
+            self.timer_job = self.root.after(
+                SCORE_TIMER_TICK_MS, self._tick_timer
+            )
+            return
         if not self.state.finished and self.timer_paused_at is None:
             self.sidebar.time_var.set(
                 GameState.format_time(self.state.elapsed_seconds())
             )
-            self.timer_job = self.root.after(10, self._tick_timer)
+            self.timer_job = self.root.after(
+                SCORE_TIMER_TICK_MS, self._tick_timer
+            )
+
+    def _reset_score_timer_display(self) -> None:
+        self._score_timer_display_centis = GameState.elapsed_to_centis(
+            self.state.elapsed_seconds()
+        )
+        self._score_timer_roll = 0
+
+    def _advance_score_timer_display(self) -> None:
+        official_centis = GameState.elapsed_to_centis(
+            self.state.elapsed_seconds()
+        )
+        if self._score_timer_display_centis is None:
+            self._reset_score_timer_display()
+
+        cur = self._score_timer_display_centis
+        assert cur is not None
+
+        if official_centis > cur:
+            steps = max(
+                1,
+                int(round(PENALTY_TIME_ANIM_SEC / (SCORE_TIMER_TICK_MS / 1000.0))),
+            )
+            delta = official_centis - cur
+            step = max(1, (delta + steps - 1) // steps)
+            self._score_timer_display_centis = min(official_centis, cur + step)
+            self._score_timer_roll = 0
+        elif official_centis == cur:
+            sec = cur // 100
+            frac = cur % 100
+            if frac < 99:
+                span = 99 - frac
+                self._score_timer_roll = (self._score_timer_roll + 1) % (span + 1)
+                self._score_timer_display_centis = sec * 100 + frac + self._score_timer_roll
+            else:
+                self._score_timer_roll = 0
+        else:
+            self._score_timer_display_centis = official_centis
+            self._score_timer_roll = 0
+
+        shown_centis = self._score_timer_display_centis
+        self.sidebar.time_var.set(GameState.format_time(shown_centis / 100.0))
+
+    def _update_scoring_timer_display(self) -> None:
+        self._advance_score_timer_display()
 
     def _update_end_guide(self) -> None:
         if self.state.finished or self.intro_animating or self.score_animating:
@@ -130,7 +185,30 @@ class SessionMixin:
             self._update_end_guide()
 
     def _finish_with_score(self) -> None:
-        self.state.validate_all_cells()
+        self.state.commit_focus()
+        self.state.freeze_scoring_clock()
+        self.state.finish()
+        self._stop_focus_blink()
+        self.focus_overlay.place_forget()
+        if self.timer_job:
+            self.root.after_cancel(self.timer_job)
+            self.timer_job = None
+        self.guide_var.set("")
+        self.score_marks = {}
+        self.score_animating = True
+        self._score_gen += 1
+        self._score_scale_ms, self._score_stagger_ms = score_anim_timings(
+            game_mod.PLAY_CELL_COUNT
+        )
+        self._reset_score_timer_display()
+        self._advance_score_timer_display()
+        self._update_sidebar()
+        self._clear_grid_pop_layers()
+        self.refresh()
+        self._tick_timer()
+        self._run_score_animation()
+
+    def _finalize_score_after_animation(self) -> None:
         correct = self.state.correct_count()
         play_n = game_mod.PLAY_CELL_COUNT
         self.last_accuracy = accuracy_percent(correct, play_n)
@@ -144,23 +222,15 @@ class SessionMixin:
             )
             self._result_score_saved = True
         self.last_played_at = datetime.now().strftime("%Y/%m/%d %H:%M")
-        self.state.finish()
-        self._stop_focus_blink()
-        self.focus_overlay.place_forget()
         if self.timer_job:
             self.root.after_cancel(self.timer_job)
             self.timer_job = None
-        self.guide_var.set("")
-        self._update_sidebar()
-        self.score_marks = {}
-        self.score_animating = True
-        self._score_gen += 1
-        self._score_scale_ms, self._score_stagger_ms = score_anim_timings(
-            game_mod.PLAY_CELL_COUNT
+        self._score_timer_display_centis = None
+        self._score_timer_roll = 0
+        self.sidebar.time_var.set(
+            GameState.format_time(self.state.elapsed_seconds())
         )
-        self._clear_grid_pop_layers()
-        self.refresh()
-        self._run_score_animation()
+        self._update_sidebar()
 
     def _show_score_results(self) -> None:
         wrong = self.state.wrong_count()
