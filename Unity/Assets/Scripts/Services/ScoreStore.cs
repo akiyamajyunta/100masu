@@ -230,29 +230,35 @@ namespace Masu.Services
             var dir = Path.GetDirectoryName(ScoresPath);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
+
+            var highObj = new JObject();
+            var boardsObj = new JObject();
+            foreach (var key in AllBoardKeys())
+            {
+                highObj[key] = HighByDifficulty.GetValueOrDefault(key, 0);
+                var arr = new JArray();
+                if (Leaderboards.TryGetValue(key, out var list))
+                {
+                    foreach (var e in list)
+                    {
+                        arr.Add(new JObject
+                        {
+                            ["name"] = e.Name,
+                            ["score"] = e.Score,
+                            ["played_at"] = e.PlayedAt,
+                            ["accuracy"] = Math.Round(e.Accuracy, 1),
+                            ["elapsed_sec"] = Math.Round(e.ElapsedSeconds, 2)
+                        });
+                    }
+                }
+                boardsObj[key] = arr;
+            }
+
             var payload = new JObject
             {
-                ["high_by_difficulty"] = JObject.FromObject(HighByDifficulty),
-                ["leaderboards"] = new JObject()
+                ["high_by_difficulty"] = highObj,
+                ["leaderboards"] = boardsObj
             };
-            var boardsObj = (JObject)payload["leaderboards"];
-            foreach (var kv in Leaderboards)
-            {
-                if (TryParseLegacyBoardKey(kv.Key, out _, out _)) continue;
-                var arr = new JArray();
-                foreach (var e in kv.Value)
-                {
-                    arr.Add(new JObject
-                    {
-                        ["name"] = e.Name,
-                        ["score"] = e.Score,
-                        ["played_at"] = e.PlayedAt,
-                        ["accuracy"] = Math.Round(e.Accuracy, 1),
-                        ["elapsed_sec"] = Math.Round(e.ElapsedSeconds, 2)
-                    });
-                }
-                boardsObj[kv.Key] = arr;
-            }
             File.WriteAllText(ScoresPath, payload.ToString(Formatting.Indented));
             TryWriteBackup(ScoresPath);
         }

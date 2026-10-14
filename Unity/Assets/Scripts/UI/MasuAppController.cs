@@ -99,7 +99,9 @@ namespace Masu.UI
         private Coroutine _timerRoutine;
         private Coroutine _introRoutine;
         private Coroutine _scoreRoutine;
+        private int _layoutGen;
 
+        private double? _clockPausedAt;
         private float _focusMoveNextRepeat;
         private const float FocusMoveInitialDelay = 0.35f;
         private const float FocusMoveRepeatInterval = 0.06f;
@@ -356,7 +358,7 @@ namespace Masu.UI
                 regionScale: GameFrameRegionScaleX,
                 regionScaleY: GameFrameRegionScaleY);
 
-            var gridHost = new GameObject("GridHost", typeof(RectTransform));
+            var gridHost = new GameObject("GridHost", typeof(RectTransform), typeof(RectMask2D));
             gridHost.transform.SetParent(playInner, false);
             var rt = gridHost.GetComponent<RectTransform>();
             var gridPad = (1f - MainGridFrameFill) * 0.5f;
@@ -613,6 +615,8 @@ namespace Masu.UI
         {
             _introGen++;
             _scoreGen++;
+            _layoutGen++;
+            _clockPausedAt = null;
             StopGameCoroutines();
 
             _introAnimating = true;
@@ -624,7 +628,8 @@ namespace Masu.UI
             _displayScore = 0;
             _lastAccuracy = 0;
             _gridView.Rebuild(_state.Grid);
-            StartCoroutine(RebuildGridAfterLayout());
+            var layoutGen = _layoutGen;
+            StartCoroutine(RebuildGridAfterLayout(layoutGen));
             _state.Reset(startClock: false);
             _gridView.ResetPopScales();
             RefreshGrid();
@@ -633,9 +638,10 @@ namespace Masu.UI
             _introRoutine = StartCoroutine(RunIntroAnimation());
         }
 
-        private IEnumerator RebuildGridAfterLayout()
+        private IEnumerator RebuildGridAfterLayout(int layoutGen)
         {
             yield return null;
+            if (layoutGen != _layoutGen || _screen != AppScreen.Game) yield break;
             Canvas.ForceUpdateCanvases();
             _gridView.Rebuild(_state.Grid);
             RefreshGrid();
@@ -644,33 +650,64 @@ namespace Masu.UI
         private IEnumerator RunIntroAnimation()
         {
             var gen = _introGen;
-            _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
-            _timerRoutine = StartCoroutine(TickTimer());
-            var cells = _state.Grid.HeaderRevealCells();
-            var (scaleMs, staggerMs) = AnimTimings.IntroAnimTimings(cells.Count);
-            var scales = AnimTimings.IntroPopScales();
-
-            for (var i = 0; i < cells.Count; i++)
+            try
             {
-                if (gen != _introGen) yield break;
-                var (r, c) = cells[i];
-                foreach (var s in scales)
-                {
-                    _gridView.PopCell(r, c, s);
-                    RefreshGrid();
-                    yield return new WaitForSeconds(scaleMs / 1000f);
-                }
-                _revealedHeaders.Add((r, c));
-                _gridView.PopCell(r, c, 1f);
-                RefreshGrid();
-                yield return new WaitForSeconds(staggerMs / 1000f);
-            }
+                _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
+                _timerRoutine = StartCoroutine(TickTimer());
+                var cells = _state.Grid.HeaderRevealCells();
+                var (scaleMs, staggerMs) = AnimTimings.IntroAnimTimings(cells.Count);
+                var scales = AnimTimings.IntroPopScales();
 
-            if (gen != _introGen) yield break;
+                for (var i = 0; i < cells.Count; i++)
+                {
+                    if (gen != _introGen) yield break;
+                    var (r, c) = cells[i];
+                    foreach (var s in scales)
+                    {
+                        _gridView.PopCell(r, c, s);
+                        RefreshGrid();
+                        yield return new WaitForSeconds(scaleMs / 1000f);
+                    }
+                    _revealedHeaders.Add((r, c));
+                    _gridView.PopCell(r, c, 1f);
+                    RefreshGrid();
+                    yield return new WaitForSeconds(staggerMs / 1000f);
+                }
+
+                if (gen != _introGen) yield break;
+            }
+            finally
+            {
+                if (gen == _introGen)
+                    CompleteIntroAnimation(gen);
+            }
+        }
+
+        private void CompleteIntroAnimation(int gen)
+        {
+            if (gen != _introGen) return;
             _introAnimating = false;
             _gridView.ResetPopScales();
             RefreshGrid();
             UpdateEndGuide();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (_screen != AppScreen.Game || _state.Finished) return;
+            if (_state.ScoringPlayElapsed.HasValue || !_state.StartRealtime.HasValue) return;
+
+            if (!hasFocus)
+            {
+                _clockPausedAt = Time.realtimeSinceStartupAsDouble;
+                return;
+            }
+
+            if (!_clockPausedAt.HasValue) return;
+            var pausedFor = Time.realtimeSinceStartupAsDouble - _clockPausedAt.Value;
+            _state.StartRealtime = _state.StartRealtime.Value + pausedFor;
+            _clockPausedAt = null;
+            UpdateSidebarTime();
         }
 
         private IEnumerator TickTimer()
@@ -739,7 +776,7 @@ namespace Masu.UI
             if (_state.Finished || _introAnimating || _scoreAnimating)
                 _guideText.text = "";
             else if (_playMode == GamePlayMode.Quick)
-                _guideText.text = "移動で採点・最終マスは Enter 確定・全マス○でクリア";
+                _guideText.text = "移動で採点・最終マスは Enter 確定（空欄は無視）・全マス○でクリア";
             else
                 _guideText.text = "Enter キーで終了・採点の確認";
         }
@@ -985,6 +1022,8 @@ namespace Masu.UI
             if (_endConfirmRoot != null)
                 _endConfirmRoot.gameObject.SetActive(false);
             _titleMenu = 0;
+            _layoutGen++;
+            _clockPausedAt = null;
             StopGameCoroutines();
             _introAnimating = false;
             _scoreAnimating = false;

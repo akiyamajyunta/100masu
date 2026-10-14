@@ -92,11 +92,11 @@ namespace Masu.UI
 
             var spacing = _layout.spacing.x;
             var total = Mathf.Min(w, h);
-            _cellSize = (total - (n - 1) * spacing) / n;
-            _cellSize = Mathf.Clamp(_cellSize, 24f, 256f);
-            _headerFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.4f));
-            _cellFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.36f));
-            _markFontSize = Mathf.Max(12, Mathf.RoundToInt(_cellSize * 0.5f));
+            var fit = (total - (n - 1) * spacing) / n;
+            _cellSize = Mathf.Clamp(fit, 8f, 256f);
+            _headerFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.4f));
+            _cellFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.36f));
+            _markFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.5f));
         }
 
         private void CreateCell(int row, int col, Color bg, bool isHeader, string initial)
