@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Masu.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 
 namespace Masu.Services
 {
@@ -21,14 +23,58 @@ namespace Masu.Services
             }
         }
 
+        private static string ScoresBackupPath => ScoresPath + ".bak";
+
         public static ScoreStore Load()
         {
-            var store = Empty();
-            if (!File.Exists(ScoresPath)) return store;
+            if (!File.Exists(ScoresPath) && !File.Exists(ScoresBackupPath))
+                return Empty();
+
+            if (TryLoadFromFile(ScoresPath, out var store))
+            {
+                TryWriteBackup(ScoresPath);
+                FinalizeLoadedStore(store);
+                return store;
+            }
+
+            if (TryLoadFromFile(ScoresBackupPath, out store))
+            {
+                Debug.LogWarning("[100masu] scores.json の読み込みに失敗したため scores.json.bak から復元しました。");
+                FinalizeLoadedStore(store);
+                return store;
+            }
+
+            ArchiveCorruptScoreFiles();
+            Debug.LogWarning("[100masu] スコアファイルを読み込めませんでした。記録を初期化します。");
+            return Empty();
+        }
+
+        private static void ArchiveCorruptScoreFiles()
+        {
             try
             {
-                var json = File.ReadAllText(ScoresPath);
+                var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                if (File.Exists(ScoresPath))
+                    File.Move(ScoresPath, ScoresPath + $".corrupt.{stamp}");
+                if (File.Exists(ScoresBackupPath))
+                    File.Move(ScoresBackupPath, ScoresBackupPath + $".corrupt.{stamp}");
+            }
+            catch
+            {
+                // ignore archive failures
+            }
+        }
+
+        private static bool TryLoadFromFile(string path, out ScoreStore store)
+        {
+            store = null;
+            if (!File.Exists(path)) return false;
+            try
+            {
+                var json = File.ReadAllText(path);
                 var root = JObject.Parse(json);
+                store = new ScoreStore();
+                EnsureAllBoardKeys(store);
                 if (root["high_by_difficulty"] is JObject high)
                 {
                     foreach (var prop in high.Properties())
@@ -51,13 +97,44 @@ namespace Masu.Services
                         store.Leaderboards[prop.Name] = list;
                     }
                 }
+                return true;
             }
             catch
             {
-                return Empty();
+                store = null;
+                return false;
             }
+        }
+
+        private static void TryWriteBackup(string sourcePath)
+        {
+            try
+            {
+                if (!File.Exists(sourcePath)) return;
+                File.Copy(sourcePath, ScoresBackupPath, overwrite: true);
+            }
+            catch
+            {
+                // ignore backup failures
+            }
+        }
+
+        private static void FinalizeLoadedStore(ScoreStore store)
+        {
             MigrateLegacyBoardKeys(store);
-            return store;
+            PurgeLegacyBoardKeys(store);
+            EnsureAllBoardKeys(store);
+        }
+
+        private static void EnsureAllBoardKeys(ScoreStore store)
+        {
+            foreach (var key in AllBoardKeys())
+            {
+                if (!store.HighByDifficulty.ContainsKey(key))
+                    store.HighByDifficulty[key] = 0;
+                if (!store.Leaderboards.ContainsKey(key))
+                    store.Leaderboards[key] = new List<LeaderboardEntry>();
+            }
         }
 
         private static void MigrateLegacyBoardKeys(ScoreStore store)
@@ -67,8 +144,8 @@ namespace Masu.Services
             {
                 if (!TryParseLegacyBoardKey(kv.Key, out var op, out var size)) continue;
                 var modern = GridConfig.BoardKey(op, size, GamePlayMode.Classic);
-                if (store.HighByDifficulty.ContainsKey(modern)) continue;
-                store.HighByDifficulty[modern] = kv.Value;
+                if (!store.HighByDifficulty.ContainsKey(modern))
+                    store.HighByDifficulty[modern] = kv.Value;
             }
 
             var legacyBoards = new List<KeyValuePair<string, List<LeaderboardEntry>>>(store.Leaderboards);
@@ -76,8 +153,22 @@ namespace Masu.Services
             {
                 if (!TryParseLegacyBoardKey(kv.Key, out var op, out var size)) continue;
                 var modern = GridConfig.BoardKey(op, size, GamePlayMode.Classic);
-                if (store.Leaderboards.ContainsKey(modern)) continue;
-                store.Leaderboards[modern] = kv.Value;
+                if (!store.Leaderboards.ContainsKey(modern))
+                    store.Leaderboards[modern] = new List<LeaderboardEntry>(kv.Value);
+            }
+        }
+
+        private static void PurgeLegacyBoardKeys(ScoreStore store)
+        {
+            foreach (var key in store.HighByDifficulty.Keys.ToList())
+            {
+                if (TryParseLegacyBoardKey(key, out _, out _))
+                    store.HighByDifficulty.Remove(key);
+            }
+            foreach (var key in store.Leaderboards.Keys.ToList())
+            {
+                if (TryParseLegacyBoardKey(key, out _, out _))
+                    store.Leaderboards.Remove(key);
             }
         }
 
@@ -121,23 +212,21 @@ namespace Masu.Services
         public static ScoreStore Empty()
         {
             var store = new ScoreStore();
-            foreach (var key in AllBoardKeys())
-            {
-                store.HighByDifficulty[key] = 0;
-                store.Leaderboards[key] = new List<LeaderboardEntry>();
-            }
+            EnsureAllBoardKeys(store);
             return store;
         }
 
         public static IEnumerable<string> AllBoardKeys()
         {
             foreach (Operation op in Enum.GetValues(typeof(Operation)))
-            foreach (var board in PlayBoardCatalog.RankingBoards)
-                yield return GridConfig.BoardKey(op, board.PlaySize, board.Mode);
+            foreach (var size in GameConstants.GridSizes)
+            foreach (GamePlayMode mode in Enum.GetValues(typeof(GamePlayMode)))
+                yield return GridConfig.BoardKey(op, size, mode);
         }
 
         public void Save()
         {
+            PurgeLegacyBoardKeys(this);
             var dir = Path.GetDirectoryName(ScoresPath);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
@@ -149,6 +238,7 @@ namespace Masu.Services
             var boardsObj = (JObject)payload["leaderboards"];
             foreach (var kv in Leaderboards)
             {
+                if (TryParseLegacyBoardKey(kv.Key, out _, out _)) continue;
                 var arr = new JArray();
                 foreach (var e in kv.Value)
                 {
@@ -164,6 +254,7 @@ namespace Masu.Services
                 boardsObj[kv.Key] = arr;
             }
             File.WriteAllText(ScoresPath, payload.ToString(Formatting.Indented));
+            TryWriteBackup(ScoresPath);
         }
 
         public int HighScore(Operation op, int gridSize, GamePlayMode mode) =>

@@ -3,7 +3,7 @@ namespace Masu.Core
     public static class GameConstants
     {
         public const int PenaltyWrongSeconds = 10;
-        public const int PenaltyEmptySeconds = 20;
+        public const int PenaltyEmptySeconds = 10;
         public const string EmptyPenaltyMark = "__empty__";
         public const int InitialFocusRow = 1;
         public const int InitialFocusCol = 1;

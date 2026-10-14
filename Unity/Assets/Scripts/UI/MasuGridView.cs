@@ -238,6 +238,14 @@ namespace Masu.UI
                     markOk = quickOk;
                     w.Bg.color = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
                 }
+                else if (!scoreAnimating && state.PlayMode == GamePlayMode.Quick
+                         && state.Cells.TryGetValue((row, col), out var playCell)
+                         && playCell.State == CellState.Correct)
+                {
+                    showMark = true;
+                    markOk = true;
+                    w.Bg.color = MasuTheme.CellQuickCorrect;
+                }
 
                 if (showMark)
                 {

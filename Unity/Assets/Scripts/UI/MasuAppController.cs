@@ -145,9 +145,32 @@ namespace Masu.UI
 
         private void OnDestroy()
         {
-            if (_timerRoutine != null) StopCoroutine(_timerRoutine);
-            if (_introRoutine != null) StopCoroutine(_introRoutine);
-            if (_scoreRoutine != null) StopCoroutine(_scoreRoutine);
+            StopGameCoroutines();
+        }
+
+        private void StopGameCoroutines()
+        {
+            _quickPopGen++;
+            if (_quickPopRoutine != null)
+            {
+                StopCoroutine(_quickPopRoutine);
+                _quickPopRoutine = null;
+            }
+            if (_timerRoutine != null)
+            {
+                StopCoroutine(_timerRoutine);
+                _timerRoutine = null;
+            }
+            if (_introRoutine != null)
+            {
+                StopCoroutine(_introRoutine);
+                _introRoutine = null;
+            }
+            if (_scoreRoutine != null)
+            {
+                StopCoroutine(_scoreRoutine);
+                _scoreRoutine = null;
+            }
         }
 
         private void Update()
@@ -223,8 +246,13 @@ namespace Masu.UI
 
             var helpPanel = MasuUiFactory.CreatePanel(_menuRoot, "Help", MasuTheme.MainPanel);
             MasuUiFactory.CreateText(helpPanel.transform, "HelpText",
-                "矢印 / WASD … マス移動\n数字 … 入力\nBackspace … 削除\nEnter … 終了・採点\nEsc … タイトルへ",
-                24, MasuTheme.Text, TextAnchor.UpperLeft);
+                "矢印 / WASD … マス移動（長押しで連続）\n数字 … 入力　Backspace … 削除\n" +
+                "タイマー … ゲーム開始（ヘッダー表示）と同時に計測\n" +
+                "クラシック … Enter で終了・一括採点\n" +
+                "クイック … 別マスへ移動で採点（○×表示）\n" +
+                "　　　　　最終マスは Enter で確定・全マス○でクリア\n" +
+                "誤答 … +10秒　未入力（クラシック採点時）… +10秒\nEsc … 前の画面 / タイトル",
+                22, MasuTheme.Text, TextAnchor.UpperLeft);
             _menuPanels[AppScreen.Help] = helpPanel;
 
             _modeLabels = BuildMenuList(_menuRoot, "Mode", OperationMenuLabelsJa(), out var modePanel);
@@ -585,9 +613,7 @@ namespace Masu.UI
         {
             _introGen++;
             _scoreGen++;
-            if (_timerRoutine != null) StopCoroutine(_timerRoutine);
-            if (_introRoutine != null) StopCoroutine(_introRoutine);
-            if (_scoreRoutine != null) StopCoroutine(_scoreRoutine);
+            StopGameCoroutines();
 
             _introAnimating = true;
             _scoreAnimating = false;
@@ -618,6 +644,8 @@ namespace Masu.UI
         private IEnumerator RunIntroAnimation()
         {
             var gen = _introGen;
+            _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
+            _timerRoutine = StartCoroutine(TickTimer());
             var cells = _state.Grid.HeaderRevealCells();
             var (scaleMs, staggerMs) = AnimTimings.IntroAnimTimings(cells.Count);
             var scales = AnimTimings.IntroPopScales();
@@ -641,8 +669,6 @@ namespace Masu.UI
             if (gen != _introGen) yield break;
             _introAnimating = false;
             _gridView.ResetPopScales();
-            _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
-            _timerRoutine = StartCoroutine(TickTimer());
             RefreshGrid();
             UpdateEndGuide();
         }
@@ -651,7 +677,7 @@ namespace Masu.UI
         {
             while (_screen == AppScreen.Game)
             {
-                if (!_state.Finished && !_introAnimating)
+                if (!_state.Finished && _state.StartRealtime.HasValue)
                     UpdateSidebarTime();
                 yield return new WaitForSeconds(0.05f);
             }
@@ -713,7 +739,7 @@ namespace Masu.UI
             if (_state.Finished || _introAnimating || _scoreAnimating)
                 _guideText.text = "";
             else if (_playMode == GamePlayMode.Quick)
-                _guideText.text = "マス移動で採点・全マス正解でクリア";
+                _guideText.text = "移動で採点・最終マスは Enter 確定・全マス○でクリア";
             else
                 _guideText.text = "Enter キーで終了・採点の確認";
         }
@@ -731,12 +757,22 @@ namespace Masu.UI
             _state.CommitFocus();
             _state.FreezeScoringClock();
             _state.Finish();
-            _scoreAnimating = true;
             _scoreGen++;
             _scoreMarks.Clear();
             UpdateSidebar();
             RefreshGrid();
             if (_scoreRoutine != null) StopCoroutine(_scoreRoutine);
+            if (_playMode == GamePlayMode.Quick)
+            {
+                foreach (var (r, c) in _state.Grid.PlayCellsScoreOrder())
+                    _scoreMarks[(r, c)] = _state.Cells[(r, c)].State == CellState.Correct;
+                _scoreAnimating = false;
+                RefreshGrid();
+                FinalizeScore();
+                ShowScoreResults();
+                return;
+            }
+            _scoreAnimating = true;
             _scoreRoutine = StartCoroutine(RunScoreAnimation());
         }
 
@@ -757,7 +793,9 @@ namespace Masu.UI
                     RefreshGrid();
                     yield return new WaitForSeconds(scaleMs / 1000f);
                 }
-                var ok = _state.GradeCellAtScore(r, c);
+                var ok = _playMode == GamePlayMode.Quick
+                    ? _state.Cells[(r, c)].State == CellState.Correct
+                    : _state.GradeCellAtScore(r, c);
                 _scoreMarks[(r, c)] = ok;
                 _gridView.PopCell(r, c, 1f);
                 UpdateSidebar();
@@ -943,8 +981,13 @@ namespace Masu.UI
         {
             ResetResultFlow();
             _resultRoot.gameObject.SetActive(false);
+            _endConfirmVisible = false;
+            if (_endConfirmRoot != null)
+                _endConfirmRoot.gameObject.SetActive(false);
             _titleMenu = 0;
-            if (_timerRoutine != null) StopCoroutine(_timerRoutine);
+            StopGameCoroutines();
+            _introAnimating = false;
+            _scoreAnimating = false;
             ShowScreen(AppScreen.Title);
         }
 
@@ -1108,6 +1151,14 @@ namespace Masu.UI
                     RefreshGrid();
                     PromptEndGame();
                 }
+                else
+                {
+                    _state.QuickGradeFocusedCell();
+                    ApplyQuickGradeFeedback();
+                    RefreshGrid();
+                    UpdateSidebar();
+                    TryCompleteQuickMode();
+                }
                 return;
             }
             if (_state.Operation == Operation.Sub && Input.GetKeyDown(KeyCode.Minus))
@@ -1166,7 +1217,6 @@ namespace Masu.UI
 
             _state.MoveFocus(dr, dc);
             ApplyQuickGradeFeedback();
-            ClearQuickMarkAtFocus();
             RefreshGrid();
             UpdateSidebar();
             TryCompleteQuickMode();
@@ -1196,14 +1246,6 @@ namespace Masu.UI
             }
             _gridView.ResetMarkScales();
             RefreshGrid();
-        }
-
-        private void ClearQuickMarkAtFocus()
-        {
-            if (_playMode != GamePlayMode.Quick) return;
-            var key = (_state.FocusRow, _state.FocusCol);
-            if (_quickMarks.TryGetValue(key, out var ok) && !ok)
-                _quickMarks.Remove(key);
         }
 
         private void ClearQuickMarkOnEdit()

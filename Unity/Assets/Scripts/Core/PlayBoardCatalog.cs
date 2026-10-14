@@ -15,7 +15,7 @@ namespace Masu.Core
 
     public static class PlayBoardCatalog
     {
-        /// <summary>RESULT 画面 ↑↓ の並び（クラシック全サイズ → クイック全サイズ）。</summary>
+        /// <summary>RESULT 画面 ↑↓ の並び（クラシック5 → クイック5）。</summary>
         public static readonly PlayBoard[] RankingBoards =
         {
             new(4, GamePlayMode.Classic),
