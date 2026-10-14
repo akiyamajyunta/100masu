@@ -20,8 +20,14 @@ namespace Masu.UI
             "Consolas", "Courier New", "MS Gothic", "Yu Gothic UI"
         };
 
+        private static readonly string[] KeyboardFontFamilies =
+        {
+            "Century Gothic", "Century", "Century Schoolbook", "Segoe UI", "Yu Gothic UI"
+        };
+
         private static readonly Dictionary<int, Font> Cache = new();
         private static readonly Dictionary<int, Font> TimerCache = new();
+        private static readonly Dictionary<int, Font> KeyboardCache = new();
 
         public static Font UiFont => GetForSize(36);
 
@@ -44,6 +50,21 @@ namespace Masu.UI
             text.font = GetForSize(size);
             if (!string.IsNullOrEmpty(text.text))
                 text.font.RequestCharactersInTexture(text.text, size, text.fontStyle);
+        }
+
+        public static void ApplyKeyboard(Text text, int fontSize)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!KeyboardCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(KeyboardFontFamilies, bucket);
+                KeyboardCache[bucket] = font;
+            }
+            text.font = font;
+            if (!string.IsNullOrEmpty(text.text))
+                font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
         }
 
         public static void ApplyTimer(Text text, int fontSize)

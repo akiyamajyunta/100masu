@@ -600,6 +600,8 @@ namespace Masu.UI
             _resultEntryLine = MasuUiFactory.CreateText(_resultEntryPanel.transform, "EntryLine", "",
                 MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.UpperCenter);
             MasuUiFactory.PlaceTopCenter(_resultEntryLine.rectTransform, -40f, MasuRankingLayout.RowWidth, 40f);
+            MasuFonts.ApplyKeyboard(_resultEntryLine, MasuRankingLayout.RowFontSize);
+            MasuUiFactory.ApplyBlackOutline(_resultEntryLine, 1.4f);
 
             BuildNameKeyboardUi(_resultEntryPanel.transform);
         }
@@ -610,24 +612,28 @@ namespace Masu.UI
             _keyboardKeyLabels = new Text[rows.Length][];
             var colStep = MasuNameKeyboardLayout.ColumnStep;
             var halfW = MasuNameKeyboardLayout.KeyboardWidth * 0.5f;
-            var pad = 2f;
-            for (var r = 0; r < rows.Length; r++)
+            var pad = 1f;
+            var rowCount = rows.Length;
+            for (var r = 0; r < rowCount; r++)
             {
                 var line = rows[r];
                 _keyboardKeyLabels[r] = new Text[line.Length];
+                var lineHalf = line.Length * colStep * 0.5f;
                 for (var c = 0; c < line.Length; c++)
                 {
                     var label = MasuUiFactory.CreateText(parent, $"Key_{r}_{c}", line[c],
                         (int)MasuNameKeyboardLayout.KeyFontSize, MasuTheme.Text);
+                    MasuFonts.ApplyKeyboard(label, (int)MasuNameKeyboardLayout.KeyFontSize);
+                    MasuUiFactory.ApplyBlackOutline(label);
                     label.alignment = TextAnchor.MiddleCenter;
                     label.resizeTextForBestFit = true;
-                    label.resizeTextMinSize = 10;
+                    label.resizeTextMinSize = 14;
                     label.resizeTextMaxSize = (int)MasuNameKeyboardLayout.KeyFontSize;
                     var rt = label.rectTransform;
-                    rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+                    rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
                     rt.pivot = new Vector2(0.5f, 0.5f);
-                    var x = -halfW + (c + 0.5f) * colStep;
-                    var y = MasuNameKeyboardLayout.TopOffset - r * MasuNameKeyboardLayout.RowStep;
+                    var x = -lineHalf + (c + 0.5f) * colStep;
+                    var y = MasuNameKeyboardLayout.BottomMargin + (rowCount - 1 - r) * MasuNameKeyboardLayout.RowStep;
                     rt.anchoredPosition = new Vector2(x, y);
                     rt.sizeDelta = new Vector2(colStep - pad, MasuNameKeyboardLayout.RowStep - pad);
                     _keyboardKeyLabels[r][c] = label;
@@ -1587,13 +1593,11 @@ namespace Masu.UI
                     _entryName = _entryName.Length > 0 ? _entryName.Substring(0, _entryName.Length - 1) : _entryName;
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
                 {
-                    var (newName, exitToMenu) = _nameKeyboard.ApplyKey(_entryName, Leaderboard.NameDisplayMax);
+                    var (newName, submitAndExit) = _nameKeyboard.ApplyKey(_entryName, Leaderboard.NameDisplayMax);
                     _entryName = newName;
-                    if (exitToMenu)
+                    if (submitAndExit)
                     {
-                        _recordConfirmEnterOpensKeyboard = false;
-                        _resultView = ResultView.Menu;
-                        ShowResultPanel();
+                        SubmitScoreEntry();
                         return;
                     }
                 }

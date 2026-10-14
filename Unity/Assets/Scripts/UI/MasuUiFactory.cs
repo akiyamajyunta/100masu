@@ -57,6 +57,17 @@ namespace Masu.UI
             return label;
         }
 
+        public static void ApplyBlackOutline(Text label, float distance = 1.6f)
+        {
+            if (label == null) return;
+            var outline = label.GetComponent<Outline>();
+            if (outline == null)
+                outline = label.gameObject.AddComponent<Outline>();
+            outline.effectColor = Color.black;
+            outline.effectDistance = new Vector2(distance, -distance);
+            outline.useGraphicAlpha = true;
+        }
+
         public static InputField CreateInputField(Transform parent, string name)
         {
             var root = new GameObject(name, typeof(RectTransform), typeof(Image));

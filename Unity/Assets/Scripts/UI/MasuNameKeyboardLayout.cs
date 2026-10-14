@@ -6,10 +6,11 @@ namespace Masu.UI
     public static class MasuNameKeyboardLayout
     {
         /// <summary>赤枠相当：英大文字行13キー分の見かけ幅（1280 基準）。</summary>
-        public const float KeyboardWidth = 676f;
-        public const float KeyFontSize = 18f;
-        public const float RowStep = 38f;
-        public const float TopOffset = -118f;
+        public const float KeyboardWidth = 532f;
+        public const float KeyFontSize = 36f;
+        public const float RowStep = 34f;
+        /// <summary>画面下端から最下段キー行までの余白。</summary>
+        public const float BottomMargin = 100f;
 
         public static float ColumnStep => KeyboardWidth / MasuNameKeyboard.GridColumns;
     }
