@@ -106,6 +106,9 @@ class GameState:
     start_monotonic: float | None = None
     scoring_play_elapsed: float | None = None
     finished: bool = False
+    answer_input_min: float = 0.0
+    answer_input_max: float = 9.0
+    max_header_digit: int = 9
 
     @staticmethod
     def _unique_header_digits(count: int) -> list[int]:
@@ -127,6 +130,13 @@ class GameState:
             self.header[0][c] = top_digits[c - 1]
         for r in range(1, GRID_SIZE):
             self.header[r][0] = left_digits[r - 1]
+
+        self.max_header_digit = 1
+        for c in range(1, GRID_SIZE):
+            self.max_header_digit = max(self.max_header_digit, self.header[0][c])
+        for r in range(1, GRID_SIZE):
+            self.max_header_digit = max(self.max_header_digit, self.header[r][0])
+        self._recompute_answer_input_bounds()
 
         self.cells = {}
         for r in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
@@ -153,6 +163,23 @@ class GameState:
         a = self.header[row][0]
         b = self.header[0][col]
         return compute_expected(a, b, self.operation)
+
+    def _recompute_answer_input_bounds(self) -> None:
+        min_v = float("inf")
+        max_v = float("-inf")
+        for r in range(PLAY_ROW_MIN, PLAY_ROW_MAX + 1):
+            for c in range(PLAY_COL_MIN, PLAY_COL_MAX + 1):
+                v = self.expected_answer(r, c)
+                min_v = min(min_v, v)
+                max_v = max(max_v, v)
+        if min_v == float("inf"):
+            self.answer_input_min = 0.0
+            self.answer_input_max = float(self.max_header_digit)
+            return
+        self.answer_input_min = min_v
+        self.answer_input_max = max_v
+        if self.operation is not Operation.SUB:
+            self.answer_input_min = max(0.0, self.answer_input_min)
 
     def elapsed_seconds(self) -> float:
         if self.scoring_play_elapsed is not None:
@@ -346,17 +373,17 @@ class GameState:
     def _buffer_within_range(self, candidate: str) -> bool:
         if not candidate or candidate == "-" or candidate.endswith("."):
             return True
+        if self.operation is Operation.DIV and candidate in ("0", "0."):
+            return self.answer_input_min < 10
         parsed = self.parse_answer(candidate, self.operation)
         if parsed is None:
             return False
-        edge = PLAY_SIZE
-        if self.operation is Operation.ADD:
-            return 0 <= parsed <= edge * 2
-        if self.operation is Operation.MUL:
-            return 0 <= parsed <= edge * edge
-        if self.operation is Operation.SUB:
-            return -edge <= parsed <= edge
-        return 0.0 <= parsed <= 9.0
+        tol = 0.0001
+        if parsed > self.answer_input_max + tol:
+            return False
+        if self.operation is Operation.DIV:
+            return parsed >= 0
+        return True
 
     def handle_char(self, ch: str) -> None:
         if self.finished or not self.is_play_cell(self.focus_row, self.focus_col):

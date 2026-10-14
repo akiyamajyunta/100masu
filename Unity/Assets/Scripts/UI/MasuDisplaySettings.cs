@@ -64,12 +64,11 @@ namespace Masu.UI
             PlayerPrefs.Save();
         }
 
-        /// <summary>ランチャー中のプレビュー（セッション未確定）。</summary>
-        public static void ApplyPreview(int index)
+        /// <summary>ランチャー中の選択インデックス保持のみ（ウィンドウサイズは変更しない）。</summary>
+        public static void SelectDisplayOptionIndex(int index)
         {
             if (SessionLocked) return;
             ActiveIndex = Mathf.Clamp(index, 0, Options.Length - 1);
-            SetScreen(Options[ActiveIndex]);
         }
 
         /// <summary>ゲーム起動確定: 以降この解像度のみ（再起動まで変更しない）。</summary>

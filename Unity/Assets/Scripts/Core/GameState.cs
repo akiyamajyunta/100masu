@@ -355,7 +355,7 @@ namespace Masu.Core
                 return AnswerInputMin < 10;
             var parsed = GameLogic.ParseAnswer(candidate, Operation);
             if (!parsed.HasValue) return false;
-            if (parsed < AnswerInputMin - 0.0001) return false;
+            // 入力中は下限を見ない（例: 盤面最小が 12 でも "1" から打てる）。下限は採点時に判定。
             if (parsed > AnswerInputMax + 0.0001) return false;
             if (Operation == Operation.Div)
                 return parsed >= 0;
