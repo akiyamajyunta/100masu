@@ -16,6 +16,9 @@ namespace Masu.UI
         private MasuGridView _gridView;
 
         private AppScreen _screen = AppScreen.Title;
+        private MasuLauncherModal _launcher;
+        private MasuSessionDisplayGuard _displayGuard;
+        private CanvasScaler _canvasScaler;
         private Operation _operation = Operation.Add;
         private Operation _pendingOperation = Operation.Add;
         private int _gridSize = 4;
@@ -35,6 +38,7 @@ namespace Masu.UI
 
         private int _displayScore;
         private float _lastAccuracy;
+        private double _lastElapsedSeconds;
         private string _lastPlayedAt = "";
         private bool _resultScoreSaved;
         private ResultView _resultView = ResultView.Menu;
@@ -55,12 +59,17 @@ namespace Masu.UI
         private Text[] _gridLabels;
         private Text _gridOpHint;
         private Text[] _rankingOpTabs;
-        private Text[] _rankingGridTabs;
+        private Text _rankingGridLabel;
+        private Text _rankingGridArrowUp;
+        private Text _rankingGridArrowDown;
         private Text[] _rankingRows;
         private Text _sidebarMode;
+        private Text _sidebarGrid;
         private Text _sidebarHigh;
         private Text _sidebarSession;
         private Text _sidebarCorrect;
+        private Text _sidebarAnswerStars;
+        private Text _sidebarSkillStars;
         private Text _sidebarTime;
         private Text _guideText;
         private Text _resultTitle;
@@ -79,11 +88,40 @@ namespace Masu.UI
         private static readonly Operation[] Operations =
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
 
+        private const float GameFrameRegionScaleBase = 0.9f;
+        private const float GameFrameRegionScaleX = GameFrameRegionScaleBase * 0.9f * 1.2f;
+        private const float GameFrameRegionScaleY = GameFrameRegionScaleBase * 1.1f;
+        /// <summary>メイン枠内で 100 マス盤が占める比率（各辺 5% 余白）。</summary>
+        private const float MainGridFrameFill = 0.9f;
+        private static float GameColumnSplitX => MasuScoreSidebarLayout.ColumnSplitAnchorX;
+
+        private static string[] OperationMenuLabelsJa()
+        {
+            var labels = new string[Operations.Length];
+            for (var i = 0; i < Operations.Length; i++)
+                labels[i] = Operations[i].LabelJa();
+            return labels;
+        }
+
         private void Awake()
         {
             _store = ScoreStore.Load();
+            var idx = MasuDisplaySettings.LoadSavedIndex();
+            var ask = MasuDisplaySettings.LoadAskEveryTime();
+            if (ask)
+                MasuDisplaySettings.ApplyPreview(idx);
+            else
+                MasuDisplaySettings.ApplySavedForSession();
+
             BuildUi();
-            ShowScreen(AppScreen.Title);
+
+            if (ask)
+            {
+                _menuRoot.gameObject.SetActive(false);
+                _launcher.Open(idx, ask);
+            }
+            else
+                ShowScreen(AppScreen.Title);
         }
 
         private void OnDestroy()
@@ -98,6 +136,12 @@ namespace Masu.UI
             if (_endConfirmVisible)
             {
                 HandleEndConfirmInput();
+                return;
+            }
+
+            if (_launcher != null && _launcher.IsOpen)
+            {
+                HandleLauncherInput();
                 return;
             }
 
@@ -124,15 +168,16 @@ namespace Masu.UI
             canvasGo.transform.SetParent(transform, false);
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvasGo.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1280, 720);
+            _canvasScaler = canvasGo.GetComponent<CanvasScaler>();
+            MasuCanvasSetup.Configure(_canvasScaler);
+            _displayGuard = canvasGo.AddComponent<MasuSessionDisplayGuard>();
 
             _menuRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "MenuLayer", MasuTheme.Bg).transform;
             _gameRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "GameLayer", MasuTheme.Bg).transform;
             _resultRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "ResultOverlay", new Color(0, 0, 0, 0.75f)).transform;
             _endConfirmRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "EndConfirm", new Color(0, 0, 0, 0.6f)).transform;
 
+            _launcher = new MasuLauncherModal(canvasGo.transform);
             BuildMenuPanels();
             BuildGameLayer();
             BuildResultOverlay();
@@ -155,8 +200,7 @@ namespace Masu.UI
                 24, MasuTheme.Text, TextAnchor.UpperLeft);
             _menuPanels[AppScreen.Help] = helpPanel;
 
-            _modeLabels = BuildMenuList(_menuRoot, "Mode",
-                new[] { "たし算", "ひき算", "かけ算", "わり算" }, out var modePanel);
+            _modeLabels = BuildMenuList(_menuRoot, "Mode", OperationMenuLabelsJa(), out var modePanel);
             _menuPanels[AppScreen.Mode] = modePanel;
 
             _gridLabels = BuildMenuList(_menuRoot, "Grid",
@@ -164,33 +208,7 @@ namespace Masu.UI
             _gridOpHint = MasuUiFactory.CreateText(gridPanel.transform, "OpHint", "", 22, MasuTheme.TextDim);
             _menuPanels[AppScreen.Grid] = gridPanel;
 
-            var rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", MasuTheme.MainPanel);
-            _rankingOpTabs = new Text[4];
-            _rankingGridTabs = new Text[GameConstants.GridSizes.Length];
-            _rankingRows = new Text[10];
-            var rankHeader = MasuUiFactory.CreateText(rankPanel.transform, "RankTitle", "RESULT", 36, MasuTheme.CursorGold);
-            rankHeader.rectTransform.anchoredPosition = new Vector2(0, 280);
-            for (var i = 0; i < 4; i++)
-            {
-                _rankingOpTabs[i] = MasuUiFactory.CreateText(rankPanel.transform, $"OpTab{i}",
-                    Operations[i].LabelJa(), 20, MasuTheme.TextDim);
-                _rankingOpTabs[i].rectTransform.anchoredPosition = new Vector2(-420 + i * 140, 220);
-            }
-            for (var i = 0; i < GameConstants.GridSizes.Length; i++)
-            {
-                _rankingGridTabs[i] = MasuUiFactory.CreateText(rankPanel.transform, $"GridTab{i}",
-                    GridConfig.GridLabel(GameConstants.GridSizes[i]), 18, MasuTheme.TextDim);
-                _rankingGridTabs[i].rectTransform.anchoredPosition = new Vector2(320, 180 - i * 28);
-            }
-            for (var i = 0; i < 10; i++)
-            {
-                _rankingRows[i] = MasuUiFactory.CreateText(rankPanel.transform, $"RankRow{i}", "-", 18, MasuTheme.Text,
-                    TextAnchor.MiddleLeft);
-                _rankingRows[i].rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-                _rankingRows[i].rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                _rankingRows[i].rectTransform.sizeDelta = new Vector2(900, 28);
-                _rankingRows[i].rectTransform.anchoredPosition = new Vector2(0, 120 - i * 30);
-            }
+            BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
         }
 
@@ -210,42 +228,155 @@ namespace Masu.UI
             return labels;
         }
 
+        private void BuildRankingPanel(out GameObject rankPanel)
+        {
+            rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", MasuTheme.ResultBg);
+            MasuUiFactory.Stretch(rankPanel.GetComponent<RectTransform>());
+
+            var title = MasuUiFactory.CreateText(rankPanel.transform, "RankTitle", "RESULT",
+                MasuRankingLayout.TitleFontSize, MasuTheme.ResultText);
+            MasuUiFactory.PlaceTopCenter(title.rectTransform, -28f, 480f, 64f);
+
+            _rankingOpTabs = new Text[4];
+            for (var i = 0; i < 4; i++)
+            {
+                _rankingOpTabs[i] = MasuUiFactory.CreateText(rankPanel.transform, $"OpTab{i}",
+                    Operations[i].LabelEn(), MasuRankingLayout.OperationTabFontSize, MasuTheme.ResultText,
+                    TextAnchor.UpperCenter);
+                var opRt = _rankingOpTabs[i].rectTransform;
+                opRt.anchorMin = opRt.anchorMax = new Vector2(0.5f, 1f);
+                opRt.pivot = new Vector2(0.5f, 1f);
+                opRt.anchoredPosition = new Vector2(-270f + i * 180f, -108f);
+                opRt.sizeDelta = new Vector2(170f, 40f);
+            }
+
+            _rankingGridArrowUp = MasuUiFactory.CreateText(rankPanel.transform, "GridUp", "▲",
+                MasuRankingLayout.GridArrowFontSize, MasuTheme.ResultArrow);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, -158f, 56f, 44f);
+
+            _rankingGridLabel = MasuUiFactory.CreateText(rankPanel.transform, "GridLabel", "4×4",
+                MasuRankingLayout.GridLabelFontSize, MasuTheme.ResultText);
+            MasuUiFactory.PlaceTopCenter(_rankingGridLabel.rectTransform, -196f, 140f, 44f);
+
+            _rankingGridArrowDown = MasuUiFactory.CreateText(rankPanel.transform, "GridDown", "▼",
+                MasuRankingLayout.GridArrowFontSize, MasuTheme.ResultArrow);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, -234f, 56f, 44f);
+
+            _rankingRows = new Text[10];
+            for (var i = 0; i < 10; i++)
+            {
+                _rankingRows[i] = MasuUiFactory.CreateText(rankPanel.transform, $"RankRow{i}", "-",
+                    MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.MiddleCenter);
+                MasuUiFactory.PlaceTopCenter(_rankingRows[i].rectTransform,
+                    MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
+                    MasuRankingLayout.RowWidth, 36f);
+            }
+
+            var hint = MasuUiFactory.CreateText(rankPanel.transform, "RankHint", "↑↓ マス目　←→ 演算　Esc タイトルへ",
+                MasuRankingLayout.HintFontSize, MasuTheme.ResultText, TextAnchor.LowerCenter);
+            var hintRt = hint.rectTransform;
+            hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
+            hintRt.pivot = new Vector2(0.5f, 0f);
+            hintRt.anchoredPosition = new Vector2(0, 24);
+            hintRt.sizeDelta = new Vector2(900, 28);
+        }
+
         private void BuildGameLayer()
         {
+            var playInner = MasuUiFactory.CreateFramedRegion(
+                _gameRoot,
+                "MainPlayFrame",
+                new Vector2(0f, 0f),
+                new Vector2(GameColumnSplitX, 1f),
+                new Vector2(16f, 16f),
+                new Vector2(-8f, -16f),
+                MasuTheme.MainInner,
+                regionScale: GameFrameRegionScaleX,
+                regionScaleY: GameFrameRegionScaleY);
+
             var gridHost = new GameObject("GridHost", typeof(RectTransform));
-            gridHost.transform.SetParent(_gameRoot, false);
+            gridHost.transform.SetParent(playInner, false);
             var rt = gridHost.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.35f, 0.5f);
-            rt.anchorMax = new Vector2(0.35f, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
+            var gridPad = (1f - MainGridFrameFill) * 0.5f;
+            rt.anchorMin = new Vector2(gridPad, 0.1f);
+            rt.anchorMax = new Vector2(1f - gridPad, 1f - gridPad);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
             _gridView = new MasuGridView(gridHost.transform);
 
-            var side = MasuUiFactory.CreatePanel(_gameRoot, "Sidebar", MasuTheme.MainPanel);
-            var srt = side.GetComponent<RectTransform>();
-            srt.anchorMin = new Vector2(0.72f, 0.15f);
-            srt.anchorMax = new Vector2(0.95f, 0.85f);
-            srt.offsetMin = srt.offsetMax = Vector2.zero;
+            _guideText = MasuUiFactory.CreateText(playInner, "Guide", "", 16, MasuTheme.TextDim, TextAnchor.LowerCenter);
+            _guideText.rectTransform.anchorMin = new Vector2(0.5f, 0f);
+            _guideText.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+            _guideText.rectTransform.pivot = new Vector2(0.5f, 0f);
+            _guideText.rectTransform.anchoredPosition = new Vector2(0, 12);
+            _guideText.rectTransform.sizeDelta = new Vector2(640, 48);
 
-            _sidebarMode = MasuUiFactory.CreateText(side.transform, "Mode", "", 22, MasuTheme.Text, TextAnchor.UpperLeft);
-            _sidebarHigh = MasuUiFactory.CreateText(side.transform, "High", "", 20, MasuTheme.TextDim, TextAnchor.UpperLeft);
-            _sidebarSession = MasuUiFactory.CreateText(side.transform, "Session", "", 20, MasuTheme.TextDim, TextAnchor.UpperLeft);
-            _sidebarCorrect = MasuUiFactory.CreateText(side.transform, "Correct", "", 20, MasuTheme.Text, TextAnchor.UpperLeft);
-            _sidebarTime = MasuUiFactory.CreateText(side.transform, "Time", "", 32, MasuTheme.CursorGold, TextAnchor.UpperLeft);
-            _guideText = MasuUiFactory.CreateText(_gameRoot, "Guide", "", 18, MasuTheme.TextDim, TextAnchor.LowerCenter);
-            _guideText.rectTransform.anchorMin = new Vector2(0.5f, 0);
-            _guideText.rectTransform.anchorMax = new Vector2(0.5f, 0);
-            _guideText.rectTransform.anchoredPosition = new Vector2(0, 24);
+            BuildScoreSidebar();
+        }
 
-            var y = -20f;
-            foreach (var t in new[] { _sidebarMode, _sidebarHigh, _sidebarSession, _sidebarCorrect, _sidebarTime })
-            {
-                t.rectTransform.anchorMin = t.rectTransform.anchorMax = new Vector2(0, 1);
-                t.rectTransform.pivot = new Vector2(0, 1);
-                t.rectTransform.anchoredPosition = new Vector2(16, y);
-                t.rectTransform.sizeDelta = new Vector2(260, 40);
-                y -= 36;
-            }
-            _sidebarTime.fontSize = 36;
+        private void BuildScoreSidebar()
+        {
+            var scoreInner = MasuUiFactory.CreateFramedRegion(
+                _gameRoot,
+                "ScoreFrame",
+                new Vector2(GameColumnSplitX, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(MasuScoreSidebarLayout.GapFromMain, 16f),
+                new Vector2(-MasuScoreSidebarLayout.MarginRight, -16f),
+                MasuTheme.StatusInner,
+                regionScale: MasuScoreSidebarLayout.FrameRegionScaleX,
+                regionScaleY: MasuScoreSidebarLayout.FrameRegionScaleY);
+
+            _sidebarMode = MasuUiFactory.CreateText(scoreInner, "Mode", "", MasuScoreSidebarLayout.ModeFontSize,
+                MasuTheme.CursorGold, TextAnchor.UpperCenter);
+            _sidebarMode.fontStyle = FontStyle.Bold;
+            MasuFonts.Apply(_sidebarMode, MasuScoreSidebarLayout.ModeFontSize);
+            MasuUiFactory.PlaceTopCenter(_sidebarMode.rectTransform, -12f, 230f, 48f);
+
+            _sidebarGrid = MasuUiFactory.CreateText(scoreInner, "GridSize", "", MasuScoreSidebarLayout.GridFontSize,
+                MasuTheme.Text, TextAnchor.UpperCenter);
+            MasuUiFactory.PlaceTopCenter(_sidebarGrid.rectTransform, -58f, 230f, 32f);
+
+            var rowY = -96f;
+            _sidebarHigh = MasuUiFactory.CreateSidebarStatRow(scoreInner, "High", "最高得点", rowY, MasuTheme.Text,
+                MasuScoreSidebarLayout.StatValueFontSize);
+            rowY -= 50f;
+            _sidebarSession = MasuUiFactory.CreateSidebarStatRow(scoreInner, "Session", "得点", rowY,
+                MasuTheme.CursorGold, MasuScoreSidebarLayout.StatValueFontSize);
+            rowY -= 50f;
+            _sidebarCorrect = MasuUiFactory.CreateSidebarStatRow(scoreInner, "Correct", "正解", rowY, MasuTheme.Text,
+                MasuScoreSidebarLayout.CorrectValueFontSize);
+            rowY -= 44f;
+
+            MasuUiFactory.CreateSidebarStarsRow(scoreInner, "Answer", "答力 :", rowY, out _sidebarAnswerStars);
+            rowY -= 40f;
+            MasuUiFactory.CreateSidebarStarsRow(scoreInner, "Skill", "技能 :", rowY, out _sidebarSkillStars);
+
+            var pad = MasuScoreSidebarLayout.ContentPadX;
+            var timerLabel = MasuUiFactory.CreateText(scoreInner, "TimerLabel", "時間",
+                MasuScoreSidebarLayout.StatLabelFontSize, MasuTheme.Text, TextAnchor.LowerLeft);
+            var tlRt = timerLabel.rectTransform;
+            tlRt.anchorMin = tlRt.anchorMax = new Vector2(0, 0);
+            tlRt.pivot = new Vector2(0, 0);
+            tlRt.anchoredPosition = new Vector2(pad, 36f);
+            tlRt.sizeDelta = new Vector2(120, 18);
+
+            var timerBar = MasuUiFactory.CreatePanel(scoreInner, "TimerBar", MasuTheme.GaugeTimer);
+            var barRt = timerBar.GetComponent<RectTransform>();
+            barRt.anchorMin = new Vector2(0, 0);
+            barRt.anchorMax = new Vector2(1, 0);
+            barRt.pivot = new Vector2(0.5f, 0);
+            barRt.anchoredPosition = new Vector2(0, 14f);
+            barRt.sizeDelta = new Vector2(-pad * 2f, MasuScoreSidebarLayout.TimerBarHeight);
+
+            _sidebarTime = MasuUiFactory.CreateText(scoreInner, "Time", "0:00.00", MasuScoreSidebarLayout.TimerFontSize,
+                MasuTheme.GaugeTimer, TextAnchor.LowerRight);
+            _sidebarTime.fontStyle = FontStyle.Bold;
+            MasuFonts.Apply(_sidebarTime, MasuScoreSidebarLayout.TimerFontSize);
+            var timeRt = _sidebarTime.rectTransform;
+            timeRt.anchorMin = timeRt.anchorMax = new Vector2(1, 0);
+            timeRt.pivot = new Vector2(1, 0);
+            timeRt.anchoredPosition = new Vector2(-pad, 36f);
+            timeRt.sizeDelta = new Vector2(160, 32);
         }
 
         private void BuildResultOverlay()
@@ -271,10 +402,10 @@ namespace Masu.UI
             _resultPreviewRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
-                _resultPreviewRows[i] = MasuUiFactory.CreateText(_resultConfirmPanel.transform, $"Prev{i}", "-", 18,
-                    MasuTheme.Text, TextAnchor.MiddleLeft);
-                _resultPreviewRows[i].rectTransform.anchoredPosition = new Vector2(-400, 100 - i * 28);
-                _resultPreviewRows[i].rectTransform.sizeDelta = new Vector2(880, 26);
+                _resultPreviewRows[i] = MasuUiFactory.CreateText(_resultConfirmPanel.transform, $"Prev{i}", "-",
+                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleLeft);
+                _resultPreviewRows[i].rectTransform.anchoredPosition = new Vector2(-440, 120 - i * 36);
+                _resultPreviewRows[i].rectTransform.sizeDelta = new Vector2(920, 34);
             }
             MasuUiFactory.CreateText(_resultConfirmPanel.transform, "ConfirmHint",
                 "Enter … 名前入力へ / Esc … 戻る", 18, MasuTheme.TextDim);
@@ -314,16 +445,16 @@ namespace Masu.UI
         private void RefreshMenuHighlights()
         {
             HighlightList(_titleLabels, _titleMenu, new[] { "はじめる", "操作説明", "RESULT" });
-            HighlightList(_modeLabels, _modeCursor, new[] { "たし算", "ひき算", "かけ算", "わり算" });
+            HighlightList(_modeLabels, _modeCursor, OperationMenuLabelsJa());
             var gridTexts = Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel);
             HighlightList(_gridLabels, _gridCursor, gridTexts);
             if (_gridOpHint != null)
                 _gridOpHint.text = _pendingOperation.LabelJa();
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
-                _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.TextDim;
-            for (var i = 0; i < _rankingGridTabs.Length; i++)
-                _rankingGridTabs[i].color = i == _rankingGridCursor ? MasuTheme.CursorGold : MasuTheme.TextDim;
+                _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.ResultText;
+            if (_rankingGridLabel != null)
+                _rankingGridLabel.text = GridConfig.GridLabel(GameConstants.GridSizes[_rankingGridCursor]);
             RefreshRankingTable();
         }
 
@@ -333,13 +464,7 @@ namespace Masu.UI
             var size = GameConstants.GridSizes[_rankingGridCursor];
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, size));
             for (var i = 0; i < 10; i++)
-            {
-                var e = entries[i];
-                var date = string.IsNullOrEmpty(e.PlayedAt) ? Leaderboard.EmptyDate : e.PlayedAt;
-                var name = Leaderboard.IsPlaceholder(e) ? Leaderboard.PlaceholderName : e.Name;
-                _rankingRows[i].text =
-                    $"{i + 1,2}. {name,-8} {Leaderboard.FormatScore(e.Score)}  {date}  {Leaderboard.FormatAccuracy(e.Accuracy)}";
-            }
+                _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
         }
 
         private static void HighlightList(Text[] labels, int cursor, string[] items)
@@ -380,12 +505,21 @@ namespace Masu.UI
             _displayScore = 0;
             _lastAccuracy = 0;
             _gridView.Rebuild(_state.Grid);
+            StartCoroutine(RebuildGridAfterLayout());
             _state.Reset(startClock: false);
             _gridView.ResetPopScales();
             RefreshGrid();
             UpdateSidebar();
             UpdateEndGuide();
             _introRoutine = StartCoroutine(RunIntroAnimation());
+        }
+
+        private IEnumerator RebuildGridAfterLayout()
+        {
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            _gridView.Rebuild(_state.Grid);
+            RefreshGrid();
         }
 
         private IEnumerator RunIntroAnimation()
@@ -439,24 +573,38 @@ namespace Masu.UI
             var playN = s.Grid.PlayCellCount;
             int correctN;
             if (_scoreMarks.Count > 0)
-                correctN = 0; // stars during anim use marks
+            {
+                correctN = 0;
+                foreach (var kv in _scoreMarks)
+                    if (kv.Value) correctN++;
+            }
             else if (s.Finished)
                 correctN = s.CorrectCount();
             else
                 correctN = s.FilledCount();
 
-            foreach (var kv in _scoreMarks)
-                if (kv.Value) correctN++;
-
             var correctText = s.Finished
                 ? $"{s.CorrectCount()} / {playN}"
                 : $"{s.FilledCount()} / {playN}";
 
-            _sidebarMode.text = $"{_operation.LabelJa()} {GridConfig.GridLabel(_gridSize)}";
-            _sidebarHigh.text = $"最高 {_store.HighScore(_operation, _gridSize):N0}";
-            _sidebarSession.text = s.Finished ? $"得点 {_displayScore:N0}" : "得点 ---";
-            _sidebarCorrect.text = $"入力 {correctText}";
+            var starMax = GameConstants.StarGaugeMax;
+            var answerStars = playN > 0 ? starMax * correctN / playN : 0;
+            var skillStars = Math.Max(0, starMax - Math.Min(starMax, s.PenaltyCount));
+
+            _sidebarMode.text = _operation.LabelEn();
+            _sidebarGrid.text = GridConfig.GridLabel(_gridSize);
+            _sidebarHigh.text = $"{_store.HighScore(_operation, _gridSize):N0}";
+            _sidebarSession.text = s.Finished ? $"{_displayScore:N0}" : "---";
+            _sidebarCorrect.text = correctText;
+            _sidebarAnswerStars.text = FormatStarGauge(answerStars, starMax);
+            _sidebarSkillStars.text = FormatStarGauge(skillStars, starMax);
             UpdateSidebarTime();
+        }
+
+        private static string FormatStarGauge(int filled, int total)
+        {
+            filled = Math.Max(0, Math.Min(total, filled));
+            return new string('★', filled) + new string('☆', total - filled);
         }
 
         private void UpdateSidebarTime()
@@ -540,6 +688,7 @@ namespace Masu.UI
                 _store.RecordSession(_operation, _gridSize, _displayScore);
                 _resultScoreSaved = true;
             }
+            _lastElapsedSeconds = elapsed;
             _lastPlayedAt = DateTime.Now.ToString("yyyy/MM/dd HH:mm");
             UpdateSidebar();
         }
@@ -593,16 +742,14 @@ namespace Masu.UI
                     previewName,
                     _displayScore,
                     _lastPlayedAt,
-                    _lastAccuracy);
+                    _lastAccuracy,
+                    _lastElapsedSeconds);
                 _entryPreviewRank = rank;
                 var padded = Leaderboard.Padded(entries);
                 for (var i = 0; i < 10; i++)
                 {
-                    var e = padded[i];
-                    var hl = i + 1 == rank ? "▶ " : "  ";
-                    var date = string.IsNullOrEmpty(e.PlayedAt) ? Leaderboard.EmptyDate : e.PlayedAt;
-                    _resultPreviewRows[i].text =
-                        $"{hl}{i + 1,2}. {e.Name,-8} {Leaderboard.FormatScore(e.Score)}  {date}  {Leaderboard.FormatAccuracy(e.Accuracy)}";
+                    var prefix = i + 1 == rank ? "▶ " : "";
+                    _resultPreviewRows[i].text = prefix + Leaderboard.FormatRankingRow(i + 1, padded[i]);
                     _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.Text;
                 }
             }
@@ -621,7 +768,8 @@ namespace Masu.UI
                 "-",
                 _displayScore,
                 _lastPlayedAt,
-                _lastAccuracy);
+                _lastAccuracy,
+                _lastElapsedSeconds);
             _entryPreviewRank = rank;
             _entryName = "";
             _resultView = ResultView.Confirm;
@@ -634,7 +782,8 @@ namespace Masu.UI
             if (!string.IsNullOrEmpty(_entryName))
             {
                 _store.AddLeaderboardEntry(
-                    _operation, _gridSize, _entryName, _displayScore, _lastPlayedAt, _lastAccuracy);
+                    _operation, _gridSize, _entryName, _displayScore, _lastPlayedAt, _lastAccuracy,
+                    _lastElapsedSeconds);
             }
             _entryName = "";
             _resultView = ResultView.Menu;
@@ -653,6 +802,46 @@ namespace Masu.UI
 
         private static int NavVertical(int cursor, int delta, int count) =>
             count <= 0 ? cursor : (cursor + delta + count) % count;
+
+        private void HandleLauncherInput()
+        {
+            var n = MasuDisplaySettings.Options.Length;
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                _launcher.SelectedIndex = NavVertical(_launcher.SelectedIndex, -1, n);
+                MasuDisplaySettings.ApplyPreview(_launcher.SelectedIndex);
+                _launcher.Refresh();
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                _launcher.SelectedIndex = NavVertical(_launcher.SelectedIndex, 1, n);
+                MasuDisplaySettings.ApplyPreview(_launcher.SelectedIndex);
+                _launcher.Refresh();
+            }
+            else if (Input.GetKeyDown(KeyCode.Space))
+            {
+                _launcher.AskEveryTime = !_launcher.AskEveryTime;
+                _launcher.Refresh();
+            }
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                ConfirmLauncherAndStartGame();
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                Application.Quit();
+            }
+        }
+
+        private void ConfirmLauncherAndStartGame()
+        {
+            MasuDisplaySettings.CommitSession(_launcher.SelectedIndex, _launcher.AskEveryTime);
+            _displayGuard.Recapture();
+            _launcher.Close();
+            _menuRoot.gameObject.SetActive(true);
+            _titleMenu = 0;
+            ShowScreen(AppScreen.Title);
+        }
 
         private void HandleTitleInput()
         {

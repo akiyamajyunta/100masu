@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Masu.Core;
 
 namespace Masu.Services
 {
@@ -9,13 +10,15 @@ namespace Masu.Services
         public int Score;
         public string PlayedAt = "";
         public float Accuracy;
+        public double ElapsedSeconds;
 
         public Dictionary<string, object> ToDict() => new()
         {
             ["name"] = Name,
             ["score"] = Score,
             ["played_at"] = PlayedAt,
-            ["accuracy"] = System.Math.Round(Accuracy, 1)
+            ["accuracy"] = System.Math.Round(Accuracy, 1),
+            ["elapsed_sec"] = System.Math.Round(ElapsedSeconds, 2)
         };
     }
 
@@ -36,7 +39,40 @@ namespace Masu.Services
             System.Math.Max(0, score).ToString().PadLeft(ScorePadWidth, '0');
 
         public static string FormatAccuracy(float accuracy) =>
-            $"{UnityEngine.Mathf.Clamp(accuracy, 0f, 100f):F1}%";
+            $"{UnityEngine.Mathf.Clamp(accuracy, 0f, 100f):F1}";
+
+        public const int NameDisplayMax = 10;
+
+        public static string DisplayName(string name)
+        {
+            var n = (name ?? "").Trim();
+            if (n.Length <= NameDisplayMax) return n;
+            return n.Substring(0, NameDisplayMax);
+        }
+
+        public static string FormatPlayedDate(string playedAt)
+        {
+            if (string.IsNullOrWhiteSpace(playedAt)) return "----/--/--";
+            var s = playedAt.Trim();
+            var sp = s.IndexOf(' ');
+            return sp > 0 ? s.Substring(0, sp) : s;
+        }
+
+        public static string FormatElapsedForRow(LeaderboardEntry e)
+        {
+            if (IsPlaceholder(e)) return "0:00.00";
+            if (e.ElapsedSeconds > 0) return GameLogic.FormatTime(e.ElapsedSeconds);
+            return "-:--.--";
+        }
+
+        public static string FormatRankingRow(int rank, LeaderboardEntry e)
+        {
+            if (IsPlaceholder(e))
+                return $"{rank}.-  -:--.--  ----/--/--  0.0";
+            var name = DisplayName(e.Name);
+            return
+                $"{rank}.{name}  {FormatElapsedForRow(e)}  {FormatPlayedDate(e.PlayedAt)}  {FormatAccuracy(e.Accuracy)}";
+        }
 
         public static List<LeaderboardEntry> Padded(List<LeaderboardEntry> entries)
         {
@@ -51,9 +87,10 @@ namespace Masu.Services
             string name,
             int score,
             string playedAt,
-            float accuracy)
+            float accuracy,
+            double elapsedSeconds = 0)
         {
-            var clean = (name ?? "").Trim();
+            var clean = DisplayName((name ?? "").Trim());
             var merged = new List<LeaderboardEntry>(entries)
             {
                 new LeaderboardEntry
@@ -61,7 +98,8 @@ namespace Masu.Services
                     Name = clean,
                     Score = UnityEngine.Mathf.Max(0, score),
                     PlayedAt = playedAt ?? "",
-                    Accuracy = UnityEngine.Mathf.Clamp(accuracy, 0f, 100f)
+                    Accuracy = UnityEngine.Mathf.Clamp(accuracy, 0f, 100f),
+                    ElapsedSeconds = System.Math.Max(0, elapsedSeconds)
                 }
             };
             merged.Sort((a, b) => b.Score.CompareTo(a.Score));
@@ -73,10 +111,11 @@ namespace Masu.Services
             string name,
             int score,
             string playedAt,
-            float accuracy)
+            float accuracy,
+            double elapsedSeconds = 0)
         {
-            var clean = (name ?? "").Trim();
-            var merged = Insert(entries, clean, score, playedAt, accuracy);
+            var clean = DisplayName((name ?? "").Trim());
+            var merged = Insert(entries, clean, score, playedAt, accuracy, elapsedSeconds);
             for (var i = 0; i < merged.Count; i++)
             {
                 var e = merged[i];

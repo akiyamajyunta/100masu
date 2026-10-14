@@ -28,6 +28,15 @@ namespace Masu.Core
             _ => ""
         };
 
+        public static string LabelEn(this Operation op) => op switch
+        {
+            Operation.Add => "Addition",
+            Operation.Sub => "Subtraction",
+            Operation.Mul => "Multiplication",
+            Operation.Div => "Division",
+            _ => ""
+        };
+
         public static string Symbol(this Operation op) => op switch
         {
             Operation.Add => "＋",

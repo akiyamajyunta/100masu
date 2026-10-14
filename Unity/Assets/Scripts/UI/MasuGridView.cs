@@ -11,6 +11,9 @@ namespace Masu.UI
         private readonly GridLayoutGroup _layout;
         private readonly Dictionary<(int r, int c), CellWidgets> _cells = new();
         private float _cellSize = 56f;
+        private int _headerFontSize = 22;
+        private int _cellFontSize = 20;
+        private int _markFontSize = 28;
 
         private sealed class CellWidgets
         {
@@ -42,7 +45,7 @@ namespace Masu.UI
             _cells.Clear();
 
             var n = grid.GridSize;
-            _cellSize = Mathf.Clamp(720f / n, 28f, 72f);
+            FitCellSize(n);
             _layout.constraintCount = n;
             _layout.cellSize = new Vector2(_cellSize, _cellSize);
 
@@ -65,6 +68,27 @@ namespace Masu.UI
             }
         }
 
+        private void FitCellSize(int n)
+        {
+            Canvas.ForceUpdateCanvases();
+            var host = _root.parent as RectTransform;
+            var w = host != null ? host.rect.width : 0f;
+            var h = host != null ? host.rect.height : 0f;
+            if (w < 8f || h < 8f)
+            {
+                var side = MasuDisplaySettings.DesignHeight * 0.9f * 0.9f;
+                w = h = side;
+            }
+
+            var spacing = _layout.spacing.x;
+            var total = Mathf.Min(w, h);
+            _cellSize = (total - (n - 1) * spacing) / n;
+            _cellSize = Mathf.Clamp(_cellSize, 24f, 256f);
+            _headerFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.4f));
+            _cellFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.36f));
+            _markFontSize = Mathf.Max(12, Mathf.RoundToInt(_cellSize * 0.5f));
+        }
+
         private void CreateCell(int row, int col, Color bg, bool isHeader, string initial)
         {
             var go = new GameObject($"c_{row}_{col}", typeof(RectTransform), typeof(Image));
@@ -72,11 +96,12 @@ namespace Masu.UI
             var image = go.GetComponent<Image>();
             image.color = bg;
 
-            var label = MasuUiFactory.CreateText(go.transform, "Label", initial, isHeader ? 22 : 20,
+            var label = MasuUiFactory.CreateText(go.transform, "Label", initial,
+                isHeader ? _headerFontSize : _cellFontSize,
                 MasuTheme.Text, TextAnchor.MiddleCenter);
             MasuUiFactory.Stretch(label.rectTransform, 2, 2, 2, 2);
 
-            var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", 28, MasuTheme.CorrectMark,
+            var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", _markFontSize, MasuTheme.CorrectMark,
                 TextAnchor.MiddleCenter);
             MasuUiFactory.Stretch(mark.rectTransform);
             mark.gameObject.SetActive(false);

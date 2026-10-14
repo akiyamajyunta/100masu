@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -5,28 +6,44 @@ namespace Masu.UI
 {
     /// <summary>
     /// Windows の日本語 OS フォント（uGUI Text 用。TMP の LiberationSans では日本語不可）。
+    /// 表示サイズごとに Dynamic Font を用意し、fontSize 差が画面上でもはっきり出るようにする。
     /// </summary>
     public static class MasuFonts
     {
-        private static Font _uiFont;
-
-        public static Font UiFont
+        private static readonly string[] FontFamilies =
         {
-            get
-            {
-                if (_uiFont != null) return _uiFont;
-                _uiFont = Font.CreateDynamicFontFromOSFont(
-                    new[] { "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic", "Segoe UI" },
-                    36);
-                return _uiFont;
-            }
+            "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic", "Segoe UI"
+        };
+
+        private static readonly Dictionary<int, Font> Cache = new();
+
+        public static Font UiFont => GetForSize(36);
+
+        public static Font GetForSize(int fontSize)
+        {
+            var bucket = BucketSize(fontSize);
+            if (Cache.TryGetValue(bucket, out var font) && font != null)
+                return font;
+            font = Font.CreateDynamicFontFromOSFont(FontFamilies, bucket);
+            Cache[bucket] = font;
+            return font;
         }
 
-        public static void Apply(Text text)
+        public static void Apply(Text text, int? fontSize = null)
         {
             if (text == null) return;
-            var font = UiFont;
-            if (font != null) text.font = font;
+            if (fontSize.HasValue)
+                text.fontSize = fontSize.Value;
+            var size = text.fontSize;
+            text.font = GetForSize(size);
+            if (!string.IsNullOrEmpty(text.text))
+                text.font.RequestCharactersInTexture(text.text, size, text.fontStyle);
+        }
+
+        private static int BucketSize(int fontSize)
+        {
+            var s = Mathf.Clamp(fontSize, 10, 72);
+            return Mathf.CeilToInt(s / 4f) * 4;
         }
     }
 }

@@ -5,7 +5,15 @@ namespace Masu.UI
     public static class MasuTheme
     {
         public static readonly Color Bg = Hex("#162030");
+        public static readonly Color ResultBg = Hex("#ffffff");
+        public static readonly Color ResultText = Hex("#1a1a1a");
+        public static readonly Color ResultArrow = Hex("#2563eb");
         public static readonly Color MainPanel = Hex("#2a1620");
+        public static readonly Color MainInner = Hex("#221e20");
+        public static readonly Color StatusInner = Hex("#241c1e");
+        public static readonly Color GaugeTimer = Hex("#5a8cc8");
+        public static readonly Color GaugeBg = Hex("#141820");
+        public static readonly Color BorderDark = Hex("#6e2a30");
         public static readonly Color Text = Hex("#f5e6c8");
         public static readonly Color TextDim = Hex("#b4a894");
         public static readonly Color CursorGold = Hex("#e6c85a");

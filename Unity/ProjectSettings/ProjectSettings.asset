@@ -6,7 +6,7 @@ PlayerSettings:
   productGUID: a1b2c3d4e5f6789012345678abcdef01
   companyName: DefaultCompany
   productName: 100masu
-  defaultScreenWidth: 1280
+  defaultScreenWidth: 960
   defaultScreenHeight: 720
   defaultIsNativeResolution: 1
   runInBackground: 1
@@ -19,7 +19,7 @@ PlayerSettings:
   submitAnalytics: 1
   usePlayerLog: 1
   bakeCollisionMeshes: 0
-  resizableWindow: 1
+  resizableWindow: 0
   useMacAppStoreValidation: 0
   macAppStoreCategory: public.app-category.games
   gpuSkinning: 1
@@ -29,7 +29,7 @@ PlayerSettings:
   xboxEnableKinectAutoTracking: 0
   xboxEnableFitness: 0
   visibleInBackground: 1
-  allowFullscreenSwitch: 1
+  allowFullscreenSwitch: 0
   fullscreenMode: 3
   xboxSpeechDB: 0
   xboxEnableHeadOrientation: 0

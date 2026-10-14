@@ -66,12 +66,14 @@ namespace Masu.Services
             if (!int.TryParse(raw["score"]?.ToString(), out var score)) return null;
             var playedAt = raw["played_at"]?.ToString()?.Trim() ?? "";
             float.TryParse(raw["accuracy"]?.ToString(), out var acc);
+            double.TryParse(raw["elapsed_sec"]?.ToString(), out var elapsed);
             return new LeaderboardEntry
             {
                 Name = name,
                 Score = Math.Max(0, score),
                 PlayedAt = playedAt,
-                Accuracy = UnityEngine.Mathf.Clamp(acc, 0f, 100f)
+                Accuracy = UnityEngine.Mathf.Clamp(acc, 0f, 100f),
+                ElapsedSeconds = Math.Max(0, elapsed)
             };
         }
 
@@ -114,7 +116,8 @@ namespace Masu.Services
                         ["name"] = e.Name,
                         ["score"] = e.Score,
                         ["played_at"] = e.PlayedAt,
-                        ["accuracy"] = Math.Round(e.Accuracy, 1)
+                        ["accuracy"] = Math.Round(e.Accuracy, 1),
+                        ["elapsed_sec"] = Math.Round(e.ElapsedSeconds, 2)
                     });
                 }
                 boardsObj[kv.Key] = arr;
@@ -147,11 +150,12 @@ namespace Masu.Services
             string name,
             int score,
             string playedAt,
-            float accuracy)
+            float accuracy,
+            double elapsedSeconds = 0)
         {
             var key = GridConfig.BoardKey(op, gridSize);
             var current = GetLeaderboard(op, gridSize);
-            Leaderboards[key] = Leaderboard.Insert(current, name, score, playedAt, accuracy);
+            Leaderboards[key] = Leaderboard.Insert(current, name, score, playedAt, accuracy, elapsedSeconds);
             Save();
         }
     }
