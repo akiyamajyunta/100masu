@@ -103,6 +103,7 @@ namespace Masu.UI
         private GameObject _resultConfirmPanel;
         private GameObject _resultEntryPanel;
         private GameObject _resultMenuPanel;
+        private GameObject _resultMenuBox;
         private GameObject _resultContentPanel;
 
         private Coroutine _timerRoutine;
@@ -116,6 +117,7 @@ namespace Masu.UI
         private float _focusMoveNextRepeat;
         private const float FocusMoveInitialDelay = 0.35f;
         private const float FocusMoveRepeatInterval = 0.06f;
+        private static readonly Color OverlayDim = new(0f, 0f, 0f, 0.55f);
 
         private static readonly Operation[] Operations =
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
@@ -252,7 +254,7 @@ namespace Masu.UI
 
             _menuRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "MenuLayer", MasuTheme.Bg).transform;
             _gameRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "GameLayer", MasuTheme.Bg).transform;
-            _resultRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "ResultOverlay", Color.clear).transform;
+            _resultRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "ResultOverlay", OverlayDim).transform;
             _endConfirmRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "EndConfirm", new Color(0, 0, 0, 0.6f)).transform;
 
             _launcher = new MasuLauncherModal(canvasGo.transform);
@@ -347,9 +349,10 @@ namespace Masu.UI
             string[] items,
             out GameObject panel,
             float startY = 80f,
-            float rowStep = 48f)
+            float rowStep = 48f,
+            Color? panelBackground = null)
         {
-            panel = MasuUiFactory.CreatePanel(parent, panelName, MasuTheme.MainPanel);
+            panel = MasuUiFactory.CreatePanel(parent, panelName, panelBackground ?? MasuTheme.MainPanel);
             var labels = new Text[items.Length];
             for (var i = 0; i < items.Length; i++)
             {
@@ -361,8 +364,8 @@ namespace Masu.UI
 
         private void BuildPauseOverlay(Transform canvas)
         {
-            _pauseRoot = MasuUiFactory.CreatePanel(canvas, "PauseOverlay", new Color(0, 0, 0, 0.55f)).transform;
-            var box = MasuUiFactory.CreatePanel(_pauseRoot, "Box", MasuTheme.MainPanel);
+            _pauseRoot = MasuUiFactory.CreatePanel(canvas, "PauseOverlay", OverlayDim).transform;
+            var box = MasuUiFactory.CreatePanel(_pauseRoot, "Box", Color.clear);
             var rt = box.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
             rt.pivot = new Vector2(0.5f, 0.5f);
@@ -533,24 +536,27 @@ namespace Masu.UI
 
         private void BuildResultOverlay()
         {
-            _resultContentPanel = MasuUiFactory.CreatePanel(_resultRoot, "Panel", MasuTheme.ResultBg);
+            _resultContentPanel = MasuUiFactory.CreatePanel(_resultRoot, "Panel", Color.clear);
             MasuUiFactory.Stretch(_resultContentPanel.GetComponent<RectTransform>());
 
-            _resultTitle = MasuUiFactory.CreateText(_resultContentPanel.transform, "Title", "", 36,
-                MasuTheme.ResultText);
+            _resultMenuBox = MasuUiFactory.CreateCenteredPanel(
+                _resultContentPanel.transform, "MenuBox", Color.clear,
+                new Vector2(720, 400), Vector2.zero);
+
+            _resultTitle = MasuUiFactory.CreateText(_resultMenuBox.transform, "Title", "", 36,
+                MasuTheme.CursorGold);
             _resultTitle.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _resultSummary = MasuUiFactory.CreateText(_resultContentPanel.transform, "Summary", "", 22,
-                MasuTheme.ResultText);
-            _resultSummary.rectTransform.sizeDelta = new Vector2(900, 72);
+            _resultSummary = MasuUiFactory.CreateText(_resultMenuBox.transform, "Summary", "", 22,
+                MasuTheme.Text);
+            _resultSummary.rectTransform.sizeDelta = new Vector2(660, 72);
             _resultSummary.rectTransform.anchoredPosition = new Vector2(0, 150);
 
-            _resultMenuPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "MenuPanel", Color.clear);
+            _resultMenuPanel = MasuUiFactory.CreatePanel(_resultMenuBox.transform, "MenuPanel", Color.clear);
             MasuUiFactory.Stretch(_resultMenuPanel.GetComponent<RectTransform>());
             _resultMenuLabels = BuildMenuList(_resultMenuPanel.transform, "ResultItems", ResultMenuItems, out _,
-                startY: 20f, rowStep: 44f);
+                startY: 20f, rowStep: 44f, panelBackground: Color.clear);
 
-            _resultConfirmPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "ConfirmPanel",
-                MasuTheme.ResultBg);
+            _resultConfirmPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "ConfirmPanel", Color.clear);
             MasuUiFactory.Stretch(_resultConfirmPanel.GetComponent<RectTransform>());
 
             _resultConfirmOp = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Op", "", 34,
@@ -558,21 +564,21 @@ namespace Masu.UI
             MasuUiFactory.PlaceTopCenter(_resultConfirmOp.rectTransform, -48f, 400f, 40f);
 
             _resultConfirmGrid = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Grid", "4×4", 28,
-                MasuTheme.ResultText, TextAnchor.UpperCenter);
+                MasuTheme.Text, TextAnchor.UpperCenter);
             MasuUiFactory.PlaceTopCenter(_resultConfirmGrid.rectTransform, -88f, 200f, 36f);
 
             _resultPreviewRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
                 _resultPreviewRows[i] = MasuUiFactory.CreateText(_resultConfirmPanel.transform, $"Prev{i}", "-",
-                    MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.MiddleCenter);
+                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleCenter);
                 MasuUiFactory.PlaceTopCenter(_resultPreviewRows[i].rectTransform,
                     MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
                     MasuRankingLayout.RowWidth, 36f);
             }
 
             _resultSessionSummary = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "SessionSummary", "",
-                MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.LowerCenter);
+                MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.LowerCenter);
             var sumRt = _resultSessionSummary.rectTransform;
             sumRt.anchorMin = sumRt.anchorMax = new Vector2(0.5f, 0f);
             sumRt.pivot = new Vector2(0.5f, 0f);
@@ -580,7 +586,7 @@ namespace Masu.UI
             sumRt.sizeDelta = new Vector2(MasuRankingLayout.RowWidth, 40);
 
             _resultConfirmHint = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "ConfirmHint",
-                "Shift … 3択メニューに戻る", MasuRankingLayout.HintFontSize, MasuTheme.ResultText,
+                "Shift … 3択メニューに戻る", MasuRankingLayout.HintFontSize, MasuTheme.TextDim,
                 TextAnchor.LowerCenter);
             var hintRt = _resultConfirmHint.rectTransform;
             hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
@@ -588,12 +594,11 @@ namespace Masu.UI
             hintRt.anchoredPosition = new Vector2(0, 16);
             hintRt.sizeDelta = new Vector2(900, 28);
 
-            _resultEntryPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "EntryPanel",
-                MasuTheme.ResultBg);
+            _resultEntryPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "EntryPanel", Color.clear);
             MasuUiFactory.Stretch(_resultEntryPanel.GetComponent<RectTransform>());
 
             _resultEntryLine = MasuUiFactory.CreateText(_resultEntryPanel.transform, "EntryLine", "",
-                MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.UpperCenter);
+                MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.UpperCenter);
             MasuUiFactory.PlaceTopCenter(_resultEntryLine.rectTransform, -40f, MasuRankingLayout.RowWidth, 40f);
 
             BuildNameKeyboardUi(_resultEntryPanel.transform);
@@ -613,7 +618,7 @@ namespace Masu.UI
                 for (var c = 0; c < line.Length; c++)
                 {
                     var label = MasuUiFactory.CreateText(parent, $"Key_{r}_{c}", line[c],
-                        (int)MasuNameKeyboardLayout.KeyFontSize, MasuTheme.ResultText);
+                        (int)MasuNameKeyboardLayout.KeyFontSize, MasuTheme.Text);
                     label.alignment = TextAnchor.MiddleCenter;
                     label.resizeTextForBestFit = true;
                     label.resizeTextMinSize = 10;
@@ -632,7 +637,7 @@ namespace Masu.UI
 
         private void BuildEndConfirm()
         {
-            var panel = MasuUiFactory.CreatePanel(_endConfirmRoot, "Box", MasuTheme.MainPanel);
+            var panel = MasuUiFactory.CreatePanel(_endConfirmRoot, "Box", Color.clear);
             var rt = panel.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(520, 240);
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -1053,6 +1058,7 @@ namespace Masu.UI
                 _resultSummary.text = string.Join(" / ", parts);
             }
             ResetResultFlow();
+            _resultRoot.SetAsLastSibling();
             _resultRoot.gameObject.SetActive(true);
             ShowResultPanel();
         }
@@ -1069,6 +1075,7 @@ namespace Masu.UI
         private void ShowResultPanel()
         {
             var isMenu = _resultView == ResultView.Menu;
+            _resultMenuBox.SetActive(isMenu);
             _resultTitle.gameObject.SetActive(isMenu);
             _resultSummary.gameObject.SetActive(isMenu);
             _resultMenuPanel.SetActive(isMenu);
@@ -1089,7 +1096,7 @@ namespace Masu.UI
             {
                 var sel = i == _resultMenu;
                 _resultMenuLabels[i].text = (sel ? "▶ " : "  ") + ResultMenuItems[i];
-                _resultMenuLabels[i].color = sel ? MasuTheme.CursorGold : MasuTheme.ResultText;
+                _resultMenuLabels[i].color = sel ? MasuTheme.CursorGold : MasuTheme.Text;
             }
         }
 
@@ -1111,7 +1118,7 @@ namespace Masu.UI
             for (var i = 0; i < 10; i++)
             {
                 _resultPreviewRows[i].text = Leaderboard.FormatRankingRow(i + 1, padded[i]);
-                _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.ResultText;
+                _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.Text;
             }
 
             var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
@@ -1123,7 +1130,7 @@ namespace Masu.UI
         {
             var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
             _resultEntryLine.text =
-                $"{_entryPreviewRank}{MasuNameKeyboard.FormatNameSlots(_entryName, Leaderboard.NameDisplayMax)}  " +
+                $"{Leaderboard.FormatRankPrefix(_entryPreviewRank)}{MasuNameKeyboard.FormatNameSlots(_entryName, Leaderboard.NameDisplayMax)}  " +
                 $"{GameLogic.FormatTime(_lastElapsedSeconds)}  {Leaderboard.FormatPlayedDate(_lastPlayedAt)}  " +
                 $"{Leaderboard.FormatAccuracy(_lastAccuracy)}";
             RefreshKeyboardHighlight();
@@ -1136,7 +1143,7 @@ namespace Masu.UI
             for (var c = 0; c < _keyboardKeyLabels[r].Length; c++)
             {
                 var sel = r == _nameKeyboard.Row && c == _nameKeyboard.Col;
-                _keyboardKeyLabels[r][c].color = sel ? MasuTheme.CursorGold : MasuTheme.ResultText;
+                _keyboardKeyLabels[r][c].color = sel ? MasuTheme.CursorGold : MasuTheme.Text;
             }
         }
 

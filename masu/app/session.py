@@ -282,7 +282,7 @@ class SessionMixin:
             date_s = self.last_played_at or "----/--/-- --:--"
             acc_s = format_accuracy(self.last_accuracy)
             self.result_entry_line_var.set(
-                f"No.{rank:02d}  {name_field}  {score_s}  {date_s}  {acc_s}"
+                f"No{rank}.  {name_field}  {score_s}  {date_s}  {acc_s}"
             )
             self.name_keyboard_view.highlight(
                 self.name_keyboard.row,

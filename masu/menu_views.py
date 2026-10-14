@@ -89,7 +89,7 @@ class LeaderboardTable(tk.Frame):
             rank_fg = T.CURSOR_GOLD if highlighted else T.TEXT_DIM
             name_fg = T.CURSOR_GOLD if highlighted else (T.TEXT if filled else T.TEXT_DIM)
             score_fg = T.CURSOR_GOLD if (highlighted or filled) else T.TEXT_DIM
-            values = (f"{i:02d}", name, score, played_at, accuracy)
+            values = (f"No{i}.", name, score, played_at, accuracy)
             fgs = (rank_fg, name_fg, score_fg, name_fg, name_fg)
             for lbl, val, fg in zip(labels, values, fgs, strict=True):
                 lbl.config(text=val, fg=fg)

@@ -65,13 +65,16 @@ namespace Masu.Services
             return "-:--.--";
         }
 
+        public static string FormatRankPrefix(int rank) => $"No{rank}.";
+
         public static string FormatRankingRow(int rank, LeaderboardEntry e)
         {
+            var rankLabel = FormatRankPrefix(rank);
             if (IsPlaceholder(e))
-                return $"{rank}.-  -:--.--  ----/--/--  0.0";
+                return $"{rankLabel}-  -:--.--  ----/--/--  0.0";
             var name = DisplayName(e.Name);
             return
-                $"{rank}.{name}  {FormatElapsedForRow(e)}  {FormatPlayedDate(e.PlayedAt)}  {FormatAccuracy(e.Accuracy)}";
+                $"{rankLabel}{name}  {FormatElapsedForRow(e)}  {FormatPlayedDate(e.PlayedAt)}  {FormatAccuracy(e.Accuracy)}";
         }
 
         public static List<LeaderboardEntry> Padded(List<LeaderboardEntry> entries)
