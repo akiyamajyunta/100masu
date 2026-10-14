@@ -76,10 +76,17 @@ namespace Masu.UI
         private Text _resultSummary;
         private Text[] _resultMenuLabels;
         private Text[] _resultPreviewRows;
-        private InputField _nameInput;
+        private Text _resultConfirmOp;
+        private Text _resultConfirmGrid;
+        private Text _resultSessionSummary;
+        private Text _resultEntryLine;
+        private Text[][] _keyboardKeyLabels;
+        private MasuNameKeyboard _nameKeyboard = new();
+        private bool _recordConfirmEnterOpensKeyboard = true;
         private GameObject _resultConfirmPanel;
         private GameObject _resultEntryPanel;
         private GameObject _resultMenuPanel;
+        private GameObject _resultContentPanel;
 
         private Coroutine _timerRoutine;
         private Coroutine _introRoutine;
@@ -174,7 +181,7 @@ namespace Masu.UI
 
             _menuRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "MenuLayer", MasuTheme.Bg).transform;
             _gameRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "GameLayer", MasuTheme.Bg).transform;
-            _resultRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "ResultOverlay", new Color(0, 0, 0, 0.75f)).transform;
+            _resultRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "ResultOverlay", Color.clear).transform;
             _endConfirmRoot = MasuUiFactory.CreatePanel(canvasGo.transform, "EndConfirm", new Color(0, 0, 0, 0.6f)).transform;
 
             _launcher = new MasuLauncherModal(canvasGo.transform);
@@ -379,44 +386,96 @@ namespace Masu.UI
             timeRt.sizeDelta = new Vector2(160, 32);
         }
 
+        private static readonly string[] ResultMenuItems =
+            { "タイトルに戻る", "記録する", "ゲームを終了する" };
+
         private void BuildResultOverlay()
         {
-            var panel = MasuUiFactory.CreatePanel(_resultRoot, "Panel", MasuTheme.MainPanel);
-            var prt = panel.GetComponent<RectTransform>();
-            prt.anchorMin = new Vector2(0.15f, 0.12f);
-            prt.anchorMax = new Vector2(0.85f, 0.88f);
-            prt.offsetMin = prt.offsetMax = Vector2.zero;
+            _resultContentPanel = MasuUiFactory.CreatePanel(_resultRoot, "Panel", MasuTheme.ResultBg);
+            MasuUiFactory.Stretch(_resultContentPanel.GetComponent<RectTransform>());
 
-            _resultTitle = MasuUiFactory.CreateText(panel.transform, "Title", "", 32, MasuTheme.CursorGold);
-            _resultTitle.rectTransform.anchoredPosition = new Vector2(0, 240);
-            _resultSummary = MasuUiFactory.CreateText(panel.transform, "Summary", "", 20, MasuTheme.Text);
-            _resultSummary.rectTransform.sizeDelta = new Vector2(900, 120);
+            _resultTitle = MasuUiFactory.CreateText(_resultContentPanel.transform, "Title", "", 36,
+                MasuTheme.ResultText);
+            _resultTitle.rectTransform.anchoredPosition = new Vector2(0, 200);
+            _resultSummary = MasuUiFactory.CreateText(_resultContentPanel.transform, "Summary", "", 22,
+                MasuTheme.ResultText);
+            _resultSummary.rectTransform.sizeDelta = new Vector2(900, 100);
+            _resultSummary.rectTransform.anchoredPosition = new Vector2(0, 120);
 
-            _resultMenuPanel = MasuUiFactory.CreatePanel(panel.transform, "MenuPanel", Color.clear);
+            _resultMenuPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "MenuPanel", Color.clear);
             MasuUiFactory.Stretch(_resultMenuPanel.GetComponent<RectTransform>());
-            _resultMenuLabels = BuildMenuList(_resultMenuPanel.transform, "ResultItems",
-                new[] { "タイトルへ戻る", "スコアを記録する" }, out _);
+            _resultMenuLabels = BuildMenuList(_resultMenuPanel.transform, "ResultItems", ResultMenuItems, out _);
 
-            _resultConfirmPanel = MasuUiFactory.CreatePanel(panel.transform, "ConfirmPanel", Color.clear);
+            _resultConfirmPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "ConfirmPanel",
+                MasuTheme.ResultBg);
             MasuUiFactory.Stretch(_resultConfirmPanel.GetComponent<RectTransform>());
+
+            _resultConfirmOp = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Op", "Addition", 34,
+                MasuTheme.CursorGold, TextAnchor.UpperCenter);
+            MasuUiFactory.PlaceTopCenter(_resultConfirmOp.rectTransform, -48f, 400f, 40f);
+
+            _resultConfirmGrid = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Grid", "4×4", 28,
+                MasuTheme.ResultText, TextAnchor.UpperCenter);
+            MasuUiFactory.PlaceTopCenter(_resultConfirmGrid.rectTransform, -88f, 200f, 36f);
+
             _resultPreviewRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
                 _resultPreviewRows[i] = MasuUiFactory.CreateText(_resultConfirmPanel.transform, $"Prev{i}", "-",
-                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleLeft);
-                _resultPreviewRows[i].rectTransform.anchoredPosition = new Vector2(-440, 120 - i * 36);
-                _resultPreviewRows[i].rectTransform.sizeDelta = new Vector2(920, 34);
+                    MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.MiddleCenter);
+                MasuUiFactory.PlaceTopCenter(_resultPreviewRows[i].rectTransform,
+                    MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
+                    MasuRankingLayout.RowWidth, 36f);
             }
-            MasuUiFactory.CreateText(_resultConfirmPanel.transform, "ConfirmHint",
-                "Enter … 名前入力へ / Esc … 戻る", 18, MasuTheme.TextDim);
 
-            _resultEntryPanel = MasuUiFactory.CreatePanel(panel.transform, "EntryPanel", Color.clear);
+            _resultSessionSummary = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "SessionSummary", "",
+                MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.LowerCenter);
+            var sumRt = _resultSessionSummary.rectTransform;
+            sumRt.anchorMin = sumRt.anchorMax = new Vector2(0.5f, 0f);
+            sumRt.pivot = new Vector2(0.5f, 0f);
+            sumRt.anchoredPosition = new Vector2(0, 48);
+            sumRt.sizeDelta = new Vector2(MasuRankingLayout.RowWidth, 40);
+
+            _resultEntryPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "EntryPanel",
+                MasuTheme.ResultBg);
             MasuUiFactory.Stretch(_resultEntryPanel.GetComponent<RectTransform>());
-            _nameInput = MasuUiFactory.CreateInputField(_resultEntryPanel.transform, "NameInput");
-            _nameInput.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 40);
-            _nameInput.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 40);
-            MasuUiFactory.CreateText(_resultEntryPanel.transform, "EntryHint",
-                "名前を入力して Enter（Esc で戻る）", 18, MasuTheme.TextDim);
+
+            _resultEntryLine = MasuUiFactory.CreateText(_resultEntryPanel.transform, "EntryLine", "",
+                MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.UpperCenter);
+            MasuUiFactory.PlaceTopCenter(_resultEntryLine.rectTransform, -40f, MasuRankingLayout.RowWidth, 40f);
+
+            BuildNameKeyboardUi(_resultEntryPanel.transform);
+        }
+
+        private void BuildNameKeyboardUi(Transform parent)
+        {
+            var rows = MasuNameKeyboard.Rows;
+            _keyboardKeyLabels = new Text[rows.Length][];
+            var colStep = MasuNameKeyboardLayout.ColumnStep;
+            var halfW = MasuNameKeyboardLayout.KeyboardWidth * 0.5f;
+            var pad = 2f;
+            for (var r = 0; r < rows.Length; r++)
+            {
+                var line = rows[r];
+                _keyboardKeyLabels[r] = new Text[line.Length];
+                for (var c = 0; c < line.Length; c++)
+                {
+                    var label = MasuUiFactory.CreateText(parent, $"Key_{r}_{c}", line[c],
+                        (int)MasuNameKeyboardLayout.KeyFontSize, MasuTheme.ResultText);
+                    label.alignment = TextAnchor.MiddleCenter;
+                    label.resizeTextForBestFit = true;
+                    label.resizeTextMinSize = 10;
+                    label.resizeTextMaxSize = (int)MasuNameKeyboardLayout.KeyFontSize;
+                    var rt = label.rectTransform;
+                    rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    var x = -halfW + (c + 0.5f) * colStep;
+                    var y = MasuNameKeyboardLayout.TopOffset - r * MasuNameKeyboardLayout.RowStep;
+                    rt.anchoredPosition = new Vector2(x, y);
+                    rt.sizeDelta = new Vector2(colStep - pad, MasuNameKeyboardLayout.RowStep - pad);
+                    _keyboardKeyLabels[r][c] = label;
+                }
+            }
         }
 
         private void BuildEndConfirm()
@@ -722,73 +781,126 @@ namespace Masu.UI
             _resultView = ResultView.Menu;
             _resultMenu = 0;
             _entryName = "";
+            _recordConfirmEnterOpensKeyboard = true;
+            _nameKeyboard = new MasuNameKeyboard();
         }
 
         private void ShowResultPanel()
         {
-            _resultMenuPanel.SetActive(_resultView == ResultView.Menu);
+            var isMenu = _resultView == ResultView.Menu;
+            _resultTitle.gameObject.SetActive(isMenu);
+            _resultSummary.gameObject.SetActive(isMenu);
+            _resultMenuPanel.SetActive(isMenu);
             _resultConfirmPanel.SetActive(_resultView == ResultView.Confirm);
             _resultEntryPanel.SetActive(_resultView == ResultView.Entry);
 
             if (_resultView == ResultView.Menu)
-            {
-                HighlightList(_resultMenuLabels, _resultMenu, new[] { "タイトルへ戻る", "スコアを記録する" });
-            }
+                HighlightResultMenu();
             else if (_resultView == ResultView.Confirm)
-            {
-                var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
-                var (entries, rank) = Leaderboard.PreviewAfterInsert(
-                    _store.GetLeaderboard(_operation, _gridSize),
-                    previewName,
-                    _displayScore,
-                    _lastPlayedAt,
-                    _lastAccuracy,
-                    _lastElapsedSeconds);
-                _entryPreviewRank = rank;
-                var padded = Leaderboard.Padded(entries);
-                for (var i = 0; i < 10; i++)
-                {
-                    var prefix = i + 1 == rank ? "▶ " : "";
-                    _resultPreviewRows[i].text = prefix + Leaderboard.FormatRankingRow(i + 1, padded[i]);
-                    _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.Text;
-                }
-            }
+                RefreshRecordConfirmPanel();
             else if (_resultView == ResultView.Entry)
+                RefreshNameEntryPanel();
+        }
+
+        private void HighlightResultMenu()
+        {
+            for (var i = 0; i < _resultMenuLabels.Length; i++)
             {
-                _nameInput.text = _entryName;
-                _nameInput.Select();
-                _nameInput.ActivateInputField();
+                var sel = i == _resultMenu;
+                _resultMenuLabels[i].text = (sel ? "▶ " : "  ") + ResultMenuItems[i];
+                _resultMenuLabels[i].color = sel ? MasuTheme.CursorGold : MasuTheme.ResultText;
             }
         }
 
-        private void BeginScoreRecord()
+        private void RefreshRecordConfirmPanel()
         {
-            var (_, rank) = Leaderboard.PreviewAfterInsert(
+            _resultConfirmOp.text = _operation.LabelEn();
+            _resultConfirmGrid.text = GridConfig.GridLabel(_gridSize);
+
+            var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
+            var (entries, rank) = Leaderboard.PreviewAfterInsert(
                 _store.GetLeaderboard(_operation, _gridSize),
-                "-",
+                previewName,
                 _displayScore,
                 _lastPlayedAt,
                 _lastAccuracy,
                 _lastElapsedSeconds);
             _entryPreviewRank = rank;
-            _entryName = "";
+            var padded = Leaderboard.Padded(entries);
+            for (var i = 0; i < 10; i++)
+            {
+                _resultPreviewRows[i].text = Leaderboard.FormatRankingRow(i + 1, padded[i]);
+                _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.ResultText;
+            }
+
+            var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
+            _resultSessionSummary.text =
+                $"{GameLogic.FormatTime(_lastElapsedSeconds)}  {played}  {_lastAccuracy:F1}%";
+        }
+
+        private void RefreshNameEntryPanel()
+        {
+            var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
+            _resultEntryLine.text =
+                $"{_entryPreviewRank}{MasuNameKeyboard.FormatNameSlots(_entryName, Leaderboard.NameDisplayMax)}  " +
+                $"{GameLogic.FormatTime(_lastElapsedSeconds)}  {Leaderboard.FormatPlayedDate(_lastPlayedAt)}  " +
+                $"{Leaderboard.FormatAccuracy(_lastAccuracy)}";
+            RefreshKeyboardHighlight();
+        }
+
+        private void RefreshKeyboardHighlight()
+        {
+            if (_keyboardKeyLabels == null) return;
+            for (var r = 0; r < _keyboardKeyLabels.Length; r++)
+            for (var c = 0; c < _keyboardKeyLabels[r].Length; c++)
+            {
+                var sel = r == _nameKeyboard.Row && c == _nameKeyboard.Col;
+                _keyboardKeyLabels[r][c].color = sel ? MasuTheme.CursorGold : MasuTheme.ResultText;
+            }
+        }
+
+        private void BeginScoreRecord()
+        {
+            var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
+            var (_, rank) = Leaderboard.PreviewAfterInsert(
+                _store.GetLeaderboard(_operation, _gridSize),
+                previewName,
+                _displayScore,
+                _lastPlayedAt,
+                _lastAccuracy,
+                _lastElapsedSeconds);
+            _entryPreviewRank = rank;
+            _recordConfirmEnterOpensKeyboard = string.IsNullOrWhiteSpace(_entryName);
+            if (_recordConfirmEnterOpensKeyboard)
+                _entryName = "";
+            _nameKeyboard = new MasuNameKeyboard();
             _resultView = ResultView.Confirm;
             ShowResultPanel();
         }
 
         private void SubmitScoreEntry()
         {
-            _entryName = _nameInput.text?.Trim() ?? "";
-            if (!string.IsNullOrEmpty(_entryName))
+            var name = (_entryName ?? "").Trim();
+            if (!string.IsNullOrEmpty(name))
             {
                 _store.AddLeaderboardEntry(
-                    _operation, _gridSize, _entryName, _displayScore, _lastPlayedAt, _lastAccuracy,
+                    _operation, _gridSize, name, _displayScore, _lastPlayedAt, _lastAccuracy,
                     _lastElapsedSeconds);
             }
             _entryName = "";
+            _recordConfirmEnterOpensKeyboard = true;
             _resultView = ResultView.Menu;
             UpdateSidebar();
             ShowResultPanel();
+        }
+
+        private static void QuitApplication()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void ReturnToTitle()
@@ -990,44 +1102,79 @@ namespace Masu.UI
         {
             if (_resultView == ResultView.Entry)
             {
-                _entryName = _nameInput.text ?? "";
-                if (Input.GetKeyDown(KeyCode.Escape))
-                {
-                    _resultView = ResultView.Confirm;
-                    ShowResultPanel();
-                }
+                if (Input.GetKeyDown(KeyCode.UpArrow))
+                    _nameKeyboard.Move(-1, 0);
+                else if (Input.GetKeyDown(KeyCode.DownArrow))
+                    _nameKeyboard.Move(1, 0);
+                else if (Input.GetKeyDown(KeyCode.LeftArrow))
+                    _nameKeyboard.Move(0, -1);
+                else if (Input.GetKeyDown(KeyCode.RightArrow))
+                    _nameKeyboard.Move(0, 1);
+                else if (Input.GetKeyDown(KeyCode.Backspace))
+                    _entryName = _entryName.Length > 0 ? _entryName.Substring(0, _entryName.Length - 1) : _entryName;
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                    SubmitScoreEntry();
+                {
+                    var (newName, exitToMenu) = _nameKeyboard.ApplyKey(_entryName, Leaderboard.NameDisplayMax);
+                    _entryName = newName;
+                    if (exitToMenu)
+                    {
+                        _recordConfirmEnterOpensKeyboard = false;
+                        _resultView = ResultView.Menu;
+                        ShowResultPanel();
+                        return;
+                    }
+                }
+                else
+                    return;
+
+                RefreshNameEntryPanel();
                 return;
             }
+
             if (_resultView == ResultView.Confirm)
             {
-                if (Input.GetKeyDown(KeyCode.Escape))
+                if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
                 {
                     _resultView = ResultView.Menu;
                     ShowResultPanel();
                 }
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
                 {
-                    _resultView = ResultView.Entry;
-                    ShowResultPanel();
+                    if (_recordConfirmEnterOpensKeyboard)
+                    {
+                        _recordConfirmEnterOpensKeyboard = false;
+                        _nameKeyboard = new MasuNameKeyboard();
+                        _resultView = ResultView.Entry;
+                        ShowResultPanel();
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_entryName))
+                        SubmitScoreEntry();
+                    else
+                    {
+                        _recordConfirmEnterOpensKeyboard = false;
+                        _nameKeyboard = new MasuNameKeyboard();
+                        _resultView = ResultView.Entry;
+                        ShowResultPanel();
+                    }
                 }
                 return;
             }
+
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
-                _resultMenu = NavVertical(_resultMenu, -1, 2);
+                _resultMenu = NavVertical(_resultMenu, -1, ResultMenuItems.Length);
                 ShowResultPanel();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
-                _resultMenu = NavVertical(_resultMenu, 1, 2);
+                _resultMenu = NavVertical(_resultMenu, 1, ResultMenuItems.Length);
                 ShowResultPanel();
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 if (_resultMenu == 0) ReturnToTitle();
-                else BeginScoreRecord();
+                else if (_resultMenu == 1) BeginScoreRecord();
+                else QuitApplication();
             }
         }
     }
