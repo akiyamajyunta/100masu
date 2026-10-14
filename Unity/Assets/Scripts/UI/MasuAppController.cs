@@ -100,6 +100,8 @@ namespace Masu.UI
         private Coroutine _introRoutine;
         private Coroutine _scoreRoutine;
         private int _layoutGen;
+        private int _trackedScreenWidth;
+        private int _trackedScreenHeight;
 
         private double? _clockPausedAt;
         private float _focusMoveNextRepeat;
@@ -135,6 +137,7 @@ namespace Masu.UI
                 MasuDisplaySettings.ApplySavedForSession();
 
             BuildUi();
+            _displayGuard.Bind(this);
 
             if (ask)
             {
@@ -143,6 +146,9 @@ namespace Masu.UI
             }
             else
                 ShowScreen(AppScreen.Title);
+
+            _trackedScreenWidth = Screen.width;
+            _trackedScreenHeight = Screen.height;
         }
 
         private void OnDestroy()
@@ -194,6 +200,8 @@ namespace Masu.UI
                 HandleResultInput();
                 return;
             }
+
+            CheckScreenSizeChanged();
 
             switch (_screen)
             {
@@ -542,11 +550,52 @@ namespace Masu.UI
 
         private void ShowScreen(AppScreen screen)
         {
+            if (screen != AppScreen.Game)
+                DismissGameOverlays();
+
             _screen = screen;
             _menuRoot.gameObject.SetActive(screen != AppScreen.Game);
             _gameRoot.gameObject.SetActive(screen == AppScreen.Game);
             foreach (var kv in _menuPanels)
                 kv.Value.SetActive(kv.Key == screen);
+            RefreshMenuHighlights();
+        }
+
+        private void DismissGameOverlays()
+        {
+            if (_resultRoot != null)
+                _resultRoot.gameObject.SetActive(false);
+            SetEndConfirmVisible(false);
+        }
+
+        private void SetEndConfirmVisible(bool visible)
+        {
+            _endConfirmVisible = visible;
+            if (_endConfirmRoot != null)
+                _endConfirmRoot.gameObject.SetActive(visible);
+        }
+
+        private void CheckScreenSizeChanged()
+        {
+            if (Screen.width == _trackedScreenWidth && Screen.height == _trackedScreenHeight)
+                return;
+            _trackedScreenWidth = Screen.width;
+            _trackedScreenHeight = Screen.height;
+            RequestUILayoutRefresh();
+        }
+
+        public void NotifyDisplayLayoutChanged() => RequestUILayoutRefresh();
+
+        private void RequestUILayoutRefresh()
+        {
+            _trackedScreenWidth = Screen.width;
+            _trackedScreenHeight = Screen.height;
+            Canvas.ForceUpdateCanvases();
+            if (_screen == AppScreen.Game && _gridView != null)
+            {
+                _layoutGen++;
+                StartCoroutine(RebuildGridAfterLayout(_layoutGen));
+            }
             RefreshMenuHighlights();
         }
 
@@ -785,8 +834,7 @@ namespace Masu.UI
         {
             if (_state.Finished || _introAnimating || _scoreAnimating) return;
             _endConfirmChoice = 0;
-            _endConfirmVisible = true;
-            _endConfirmRoot.gameObject.SetActive(true);
+            SetEndConfirmVisible(true);
         }
 
         private void FinishWithScore()
@@ -1017,10 +1065,7 @@ namespace Masu.UI
         private void ReturnToTitle()
         {
             ResetResultFlow();
-            _resultRoot.gameObject.SetActive(false);
-            _endConfirmVisible = false;
-            if (_endConfirmRoot != null)
-                _endConfirmRoot.gameObject.SetActive(false);
+            DismissGameOverlays();
             _titleMenu = 0;
             _layoutGen++;
             _clockPausedAt = null;
@@ -1067,6 +1112,7 @@ namespace Masu.UI
         {
             MasuDisplaySettings.CommitSession(_launcher.SelectedIndex, _launcher.AskEveryTime);
             _displayGuard.Recapture();
+            NotifyDisplayLayoutChanged();
             _launcher.Close();
             _menuRoot.gameObject.SetActive(true);
             _titleMenu = 0;
@@ -1171,6 +1217,12 @@ namespace Masu.UI
 
         private void HandleGameInput()
         {
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                ReturnToTitle();
+                return;
+            }
+
             if (_state.Finished || _introAnimating || _scoreAnimating) return;
 
             if (TryMoveFocus()) return;
@@ -1225,7 +1277,6 @@ namespace Masu.UI
                     return;
                 }
             }
-            if (Input.GetKeyDown(KeyCode.Escape)) ReturnToTitle();
         }
 
         private bool TryMoveFocus()
@@ -1318,15 +1369,13 @@ namespace Masu.UI
                 _endConfirmChoice = 1 - _endConfirmChoice;
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                _endConfirmVisible = false;
-                _endConfirmRoot.gameObject.SetActive(false);
+                SetEndConfirmVisible(false);
                 if (_endConfirmChoice == 0) FinishWithScore();
                 else UpdateEndGuide();
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
-                _endConfirmVisible = false;
-                _endConfirmRoot.gameObject.SetActive(false);
+                SetEndConfirmVisible(false);
                 UpdateEndGuide();
             }
         }

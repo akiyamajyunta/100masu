@@ -7,9 +7,12 @@ namespace Masu.UI
     /// </summary>
     public sealed class MasuSessionDisplayGuard : MonoBehaviour
     {
+        private MasuAppController _app;
         private int _width;
         private int _height;
         private bool _fullScreen;
+
+        public void Bind(MasuAppController app) => _app = app;
 
         private void Start()
         {
@@ -18,10 +21,14 @@ namespace Masu.UI
 
         private void Update()
         {
-            if (Application.isEditor) return;
             if (!MasuDisplaySettings.SessionLocked) return;
             if (Screen.width != _width || Screen.height != _height || Screen.fullScreen != _fullScreen)
-                MasuDisplaySettings.ReapplyActiveSession();
+            {
+                if (!Application.isEditor)
+                    MasuDisplaySettings.ReapplyActiveSession();
+                CaptureActive();
+                _app?.NotifyDisplayLayoutChanged();
+            }
         }
 
         public void Recapture() => CaptureActive();
