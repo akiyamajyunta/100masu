@@ -6,6 +6,7 @@ namespace Masu.UI
         Help,
         Mode,
         Grid,
+        PlayStyle,
         Game,
         ScoreRanking
     }

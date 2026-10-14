@@ -9,6 +9,7 @@ namespace Masu.Core
     {
         public readonly GridConfig Grid = new();
         public Operation Operation = Operation.Add;
+        public GamePlayMode PlayMode = GamePlayMode.Classic;
         public int[][] Header;
         public Dictionary<(int row, int col), PlayCell> Cells = new();
         public int FocusRow = GameConstants.InitialFocusRow;
@@ -19,6 +20,23 @@ namespace Masu.Core
         public double? StartRealtime;
         public double? ScoringPlayElapsed;
         public bool Finished;
+
+        public struct QuickGradeFeedback
+        {
+            public bool HasValue;
+            public int Row;
+            public int Col;
+            public bool Correct;
+        }
+
+        public QuickGradeFeedback PendingQuickGrade;
+
+        public QuickGradeFeedback TakeQuickGradeFeedback()
+        {
+            var ev = PendingQuickGrade;
+            PendingQuickGrade = default;
+            return ev;
+        }
 
         public void Reset(bool startClock)
         {
@@ -191,15 +209,59 @@ namespace Masu.Core
         public void MoveFocus(int dr, int dc)
         {
             if (Finished) return;
+            var fromRow = FocusRow;
+            var fromCol = FocusCol;
             CommitFocus();
+            if (PlayMode == GamePlayMode.Quick && Grid.IsPlayCell(fromRow, fromCol))
+                QuickGradeOnLeave(fromRow, fromCol);
+
             FocusRow = Mathf.Clamp(FocusRow + dr, Grid.PlayRowMin, Grid.PlayRowMax);
             FocusCol = Mathf.Clamp(FocusCol + dc, Grid.PlayColMin, Grid.PlayColMax);
+            if (PlayMode == GamePlayMode.Quick && Grid.IsPlayCell(FocusRow, FocusCol))
+                PrepareQuickCellForEdit(FocusRow, FocusCol);
             SyncBufferFromFocus();
+        }
+
+        public bool IsQuickClear() =>
+            PlayMode == GamePlayMode.Quick &&
+            CorrectCount() == Grid.PlayCellCount;
+
+        private void QuickGradeOnLeave(int row, int col)
+        {
+            PendingQuickGrade = default;
+            if (!Cells.TryGetValue((row, col), out var cell)) return;
+            if (cell.State == CellState.Correct) return;
+            var trimmed = cell.Value.Trim();
+            if (trimmed == "") return;
+            ValidateCell(row, col, trimmed);
+            PendingQuickGrade = new QuickGradeFeedback
+            {
+                HasValue = true,
+                Row = row,
+                Col = col,
+                Correct = cell.State == CellState.Correct
+            };
+        }
+
+        private void PrepareQuickCellForEdit(int row, int col)
+        {
+            if (!Cells.TryGetValue((row, col), out var cell)) return;
+            cell.LastPenalizedValue = null;
+        }
+
+        private void ClearQuickCorrectIfEditing(int row, int col)
+        {
+            if (PlayMode != GamePlayMode.Quick) return;
+            if (!Cells.TryGetValue((row, col), out var cell)) return;
+            if (cell.State != CellState.Correct) return;
+            cell.State = CellState.Empty;
+            cell.LastPenalizedValue = null;
         }
 
         public void HandleChar(char ch)
         {
             if (Finished || !Grid.IsPlayCell(FocusRow, FocusCol)) return;
+            ClearQuickCorrectIfEditing(FocusRow, FocusCol);
             if (Operation == Operation.Sub && ch == '-' && Buffer == "")
             {
                 Buffer = "-";
@@ -220,6 +282,7 @@ namespace Masu.Core
         public void HandleBackspace()
         {
             if (Finished || !Grid.IsPlayCell(FocusRow, FocusCol)) return;
+            ClearQuickCorrectIfEditing(FocusRow, FocusCol);
             var cell = Cells[(FocusRow, FocusCol)];
             Buffer = Buffer.Length > 0 ? Buffer[..^1] : "";
             cell.Value = Buffer;
@@ -246,12 +309,12 @@ namespace Masu.Core
                 return true;
             var parsed = GameLogic.ParseAnswer(candidate, Operation);
             if (!parsed.HasValue) return false;
-            var edge = Grid.PlaySize;
             return Operation switch
             {
-                Operation.Add => parsed >= 0 && parsed <= edge * 2,
-                Operation.Mul => parsed >= 0 && parsed <= edge * edge,
-                Operation.Sub => parsed >= -edge && parsed <= edge,
+                // ヘッダーは 1〜9 のため、四則の理論上の最大値で判定（部分入力「1」→「11」も可）
+                Operation.Add => parsed >= 0 && parsed <= 18,
+                Operation.Mul => parsed >= 0 && parsed <= 81,
+                Operation.Sub => parsed >= -9 && parsed <= 9,
                 Operation.Div => parsed >= 0 && parsed <= 9.0,
                 _ => false
             };

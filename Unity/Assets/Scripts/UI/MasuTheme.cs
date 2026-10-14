@@ -19,6 +19,8 @@ namespace Masu.UI
         public static readonly Color CursorGold = Hex("#e6c85a");
         public static readonly Color BorderGold = Hex("#ccac4e");
         public static readonly Color CellEmpty = Hex("#1e2838");
+        public static readonly Color CellQuickCorrect = Hex("#1a4030");
+        public static readonly Color CellQuickWrong = Hex("#4a2028");
         public static readonly Color CellBorder = Hex("#3a4558");
         public static readonly Color HeaderSlot = Hex("#2a3548");
         public static readonly Color HeaderNum = Hex("#3d4a62");
@@ -26,6 +28,8 @@ namespace Masu.UI
         public static readonly Color CorrectMark = Hex("#6ecf8a");
         public static readonly Color WrongMark = Hex("#e86a6a");
         public static readonly Color FocusRing = Hex("#e6c85a");
+        public static readonly Color FocusRingBright = Hex("#5cff9a");
+        public static readonly Color FocusRingDim = Hex("#2eb86a");
 
         public static Color Hex(string hex)
         {

@@ -56,7 +56,48 @@ namespace Masu.Services
             {
                 return Empty();
             }
+            MigrateLegacyBoardKeys(store);
             return store;
+        }
+
+        private static void MigrateLegacyBoardKeys(ScoreStore store)
+        {
+            var legacyHigh = new List<KeyValuePair<string, int>>(store.HighByDifficulty);
+            foreach (var kv in legacyHigh)
+            {
+                if (!TryParseLegacyBoardKey(kv.Key, out var op, out var size)) continue;
+                var modern = GridConfig.BoardKey(op, size, GamePlayMode.Classic);
+                if (store.HighByDifficulty.ContainsKey(modern)) continue;
+                store.HighByDifficulty[modern] = kv.Value;
+            }
+
+            var legacyBoards = new List<KeyValuePair<string, List<LeaderboardEntry>>>(store.Leaderboards);
+            foreach (var kv in legacyBoards)
+            {
+                if (!TryParseLegacyBoardKey(kv.Key, out var op, out var size)) continue;
+                var modern = GridConfig.BoardKey(op, size, GamePlayMode.Classic);
+                if (store.Leaderboards.ContainsKey(modern)) continue;
+                store.Leaderboards[modern] = kv.Value;
+            }
+        }
+
+        private static bool TryParseLegacyBoardKey(string key, out Operation op, out int playSize)
+        {
+            op = Operation.Add;
+            playSize = 0;
+            if (string.IsNullOrEmpty(key)) return false;
+            var parts = key.Split(':');
+            if (parts.Length != 2) return false;
+            if (parts[0] is not ("add" or "sub" or "mul" or "div")) return false;
+            op = parts[0] switch
+            {
+                "add" => Operation.Add,
+                "sub" => Operation.Sub,
+                "mul" => Operation.Mul,
+                "div" => Operation.Div,
+                _ => Operation.Add
+            };
+            return int.TryParse(parts[1], out playSize);
         }
 
         private static LeaderboardEntry ParseEntry(JObject raw)
@@ -91,8 +132,8 @@ namespace Masu.Services
         public static IEnumerable<string> AllBoardKeys()
         {
             foreach (Operation op in Enum.GetValues(typeof(Operation)))
-            foreach (var g in GameConstants.GridSizes)
-                yield return GridConfig.BoardKey(op, g);
+            foreach (var board in PlayBoardCatalog.RankingBoards)
+                yield return GridConfig.BoardKey(op, board.PlaySize, board.Mode);
         }
 
         public void Save()
@@ -125,12 +166,12 @@ namespace Masu.Services
             File.WriteAllText(ScoresPath, payload.ToString(Formatting.Indented));
         }
 
-        public int HighScore(Operation op, int gridSize) =>
-            HighByDifficulty.GetValueOrDefault(GridConfig.BoardKey(op, gridSize), 0);
+        public int HighScore(Operation op, int gridSize, GamePlayMode mode) =>
+            HighByDifficulty.GetValueOrDefault(GridConfig.BoardKey(op, gridSize, mode), 0);
 
-        public int RecordSession(Operation op, int gridSize, int sessionScore)
+        public int RecordSession(Operation op, int gridSize, GamePlayMode mode, int sessionScore)
         {
-            var key = GridConfig.BoardKey(op, gridSize);
+            var key = GridConfig.BoardKey(op, gridSize, mode);
             var prev = HighByDifficulty.GetValueOrDefault(key, 0);
             var next = Math.Max(prev, sessionScore);
             if (next != prev)
@@ -141,20 +182,21 @@ namespace Masu.Services
             return next;
         }
 
-        public List<LeaderboardEntry> GetLeaderboard(Operation op, int gridSize) =>
-            new(Leaderboards.GetValueOrDefault(GridConfig.BoardKey(op, gridSize), new List<LeaderboardEntry>()));
+        public List<LeaderboardEntry> GetLeaderboard(Operation op, int gridSize, GamePlayMode mode) =>
+            new(Leaderboards.GetValueOrDefault(GridConfig.BoardKey(op, gridSize, mode), new List<LeaderboardEntry>()));
 
         public void AddLeaderboardEntry(
             Operation op,
             int gridSize,
+            GamePlayMode mode,
             string name,
             int score,
             string playedAt,
             float accuracy,
             double elapsedSeconds = 0)
         {
-            var key = GridConfig.BoardKey(op, gridSize);
-            var current = GetLeaderboard(op, gridSize);
+            var key = GridConfig.BoardKey(op, gridSize, mode);
+            var current = GetLeaderboard(op, gridSize, mode);
             Leaderboards[key] = Leaderboard.Insert(current, name, score, playedAt, accuracy, elapsedSeconds);
             Save();
         }

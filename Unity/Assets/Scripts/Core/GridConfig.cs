@@ -43,7 +43,14 @@ namespace Masu.Core
 
         public static string GridLabel(int playSize) => $"{playSize}×{playSize}";
 
-        public static string BoardKey(Operation op, int playSize) =>
+        public static string BoardLabel(int playSize, GamePlayMode mode) =>
+            $"{GridLabel(playSize)} {mode.LabelJa()}";
+
+        public static string BoardKey(Operation op, int playSize, GamePlayMode mode) =>
+            $"{op.Key()}:{playSize}:{mode.Key()}";
+
+        /// <summary>旧 scores.json（モードなし）用。</summary>
+        public static string LegacyBoardKey(Operation op, int playSize) =>
             $"{op.Key()}:{playSize}";
     }
 }

@@ -22,12 +22,13 @@ namespace Masu.UI
         private Operation _operation = Operation.Add;
         private Operation _pendingOperation = Operation.Add;
         private int _gridSize = 4;
+        private GamePlayMode _playMode = GamePlayMode.Classic;
 
         private int _titleMenu;
         private int _modeCursor;
         private int _gridCursor;
         private int _rankingOpCursor;
-        private int _rankingGridCursor;
+        private int _rankingBoardCursor;
 
         private bool _introAnimating;
         private bool _scoreAnimating;
@@ -35,6 +36,9 @@ namespace Masu.UI
         private int _scoreGen;
         private readonly HashSet<(int r, int c)> _revealedHeaders = new();
         private readonly Dictionary<(int r, int c), bool> _scoreMarks = new();
+        private readonly Dictionary<(int r, int c), bool> _quickMarks = new();
+        private Coroutine _quickPopRoutine;
+        private int _quickPopGen;
 
         private int _displayScore;
         private float _lastAccuracy;
@@ -58,6 +62,10 @@ namespace Masu.UI
         private Text[] _modeLabels;
         private Text[] _gridLabels;
         private Text _gridOpHint;
+        private int _pendingGridSize = 4;
+        private int _playStyleCursor;
+        private Text[] _playStyleLabels;
+        private Text _playStyleHint;
         private Text[] _rankingOpTabs;
         private Text _rankingGridLabel;
         private Text _rankingGridArrowUp;
@@ -91,6 +99,10 @@ namespace Masu.UI
         private Coroutine _timerRoutine;
         private Coroutine _introRoutine;
         private Coroutine _scoreRoutine;
+
+        private float _focusMoveNextRepeat;
+        private const float FocusMoveInitialDelay = 0.35f;
+        private const float FocusMoveRepeatInterval = 0.06f;
 
         private static readonly Operation[] Operations =
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
@@ -164,8 +176,16 @@ namespace Masu.UI
                 case AppScreen.Help: HandleHelpInput(); break;
                 case AppScreen.Mode: HandleModeInput(); break;
                 case AppScreen.Grid: HandleGridInput(); break;
+                case AppScreen.PlayStyle: HandlePlayStyleInput(); break;
                 case AppScreen.ScoreRanking: HandleRankingInput(); break;
-                case AppScreen.Game: HandleGameInput(); break;
+                case AppScreen.Game:
+                    if (!_state.Finished && !_introAnimating && !_scoreAnimating)
+                    {
+                        _gridView.TickFocusPulse(Time.deltaTime);
+                        _gridView.Refresh(_state, _revealedHeaders, _scoreMarks, _quickMarks, _introAnimating, _scoreAnimating);
+                    }
+                    HandleGameInput();
+                    break;
             }
         }
 
@@ -215,6 +235,12 @@ namespace Masu.UI
             _gridOpHint = MasuUiFactory.CreateText(gridPanel.transform, "OpHint", "", 22, MasuTheme.TextDim);
             _menuPanels[AppScreen.Grid] = gridPanel;
 
+            _playStyleLabels = BuildMenuList(_menuRoot, "PlayStyle",
+                new[] { GamePlayMode.Classic.LabelJa(), GamePlayMode.Quick.LabelJa() }, out var playStylePanel);
+            _playStyleHint = MasuUiFactory.CreateText(playStylePanel.transform, "GridHint", "", 24, MasuTheme.CursorGold);
+            _playStyleHint.rectTransform.anchoredPosition = new Vector2(0, 120);
+            _menuPanels[AppScreen.PlayStyle] = playStylePanel;
+
             BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
         }
@@ -223,14 +249,15 @@ namespace Masu.UI
             Transform parent,
             string panelName,
             string[] items,
-            out GameObject panel)
+            out GameObject panel,
+            float rowStep = 48f)
         {
             panel = MasuUiFactory.CreatePanel(parent, panelName, MasuTheme.MainPanel);
             var labels = new Text[items.Length];
             for (var i = 0; i < items.Length; i++)
             {
                 labels[i] = MasuUiFactory.CreateText(panel.transform, $"Item{i}", items[i], 28, MasuTheme.Text);
-                labels[i].rectTransform.anchoredPosition = new Vector2(0, 80 - i * 48);
+                labels[i].rectTransform.anchoredPosition = new Vector2(0, 80 - i * rowStep);
             }
             return labels;
         }
@@ -263,7 +290,7 @@ namespace Masu.UI
 
             _rankingGridLabel = MasuUiFactory.CreateText(rankPanel.transform, "GridLabel", "4×4",
                 MasuRankingLayout.GridLabelFontSize, MasuTheme.ResultText);
-            MasuUiFactory.PlaceTopCenter(_rankingGridLabel.rectTransform, -196f, 140f, 44f);
+            MasuUiFactory.PlaceTopCenter(_rankingGridLabel.rectTransform, -196f, 320f, 44f);
 
             _rankingGridArrowDown = MasuUiFactory.CreateText(rankPanel.transform, "GridDown", "▼",
                 MasuRankingLayout.GridArrowFontSize, MasuTheme.ResultArrow);
@@ -364,26 +391,18 @@ namespace Masu.UI
             var tlRt = timerLabel.rectTransform;
             tlRt.anchorMin = tlRt.anchorMax = new Vector2(0, 0);
             tlRt.pivot = new Vector2(0, 0);
-            tlRt.anchoredPosition = new Vector2(pad, 36f);
+            tlRt.anchoredPosition = new Vector2(pad, 16f);
             tlRt.sizeDelta = new Vector2(120, 18);
-
-            var timerBar = MasuUiFactory.CreatePanel(scoreInner, "TimerBar", MasuTheme.GaugeTimer);
-            var barRt = timerBar.GetComponent<RectTransform>();
-            barRt.anchorMin = new Vector2(0, 0);
-            barRt.anchorMax = new Vector2(1, 0);
-            barRt.pivot = new Vector2(0.5f, 0);
-            barRt.anchoredPosition = new Vector2(0, 14f);
-            barRt.sizeDelta = new Vector2(-pad * 2f, MasuScoreSidebarLayout.TimerBarHeight);
 
             _sidebarTime = MasuUiFactory.CreateText(scoreInner, "Time", "0:00.00", MasuScoreSidebarLayout.TimerFontSize,
                 MasuTheme.GaugeTimer, TextAnchor.LowerRight);
             _sidebarTime.fontStyle = FontStyle.Bold;
-            MasuFonts.Apply(_sidebarTime, MasuScoreSidebarLayout.TimerFontSize);
+            MasuFonts.ApplyTimer(_sidebarTime, MasuScoreSidebarLayout.TimerFontSize);
             var timeRt = _sidebarTime.rectTransform;
             timeRt.anchorMin = timeRt.anchorMax = new Vector2(1, 0);
             timeRt.pivot = new Vector2(1, 0);
-            timeRt.anchoredPosition = new Vector2(-pad, 36f);
-            timeRt.sizeDelta = new Vector2(160, 32);
+            timeRt.anchoredPosition = new Vector2(-pad, 16f);
+            timeRt.sizeDelta = new Vector2(200, 36);
         }
 
         private static readonly string[] ResultMenuItems =
@@ -505,23 +524,34 @@ namespace Masu.UI
         {
             HighlightList(_titleLabels, _titleMenu, new[] { "はじめる", "操作説明", "RESULT" });
             HighlightList(_modeLabels, _modeCursor, OperationMenuLabelsJa());
-            var gridTexts = Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel);
-            HighlightList(_gridLabels, _gridCursor, gridTexts);
+            HighlightList(_gridLabels, _gridCursor,
+                Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel));
             if (_gridOpHint != null)
                 _gridOpHint.text = _pendingOperation.LabelJa();
+
+            if (_playStyleLabels != null)
+            {
+                HighlightList(_playStyleLabels, _playStyleCursor,
+                    new[] { GamePlayMode.Classic.LabelJa(), GamePlayMode.Quick.LabelJa() });
+                if (_playStyleHint != null)
+                    _playStyleHint.text = GridConfig.GridLabel(_pendingGridSize);
+            }
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
                 _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.ResultText;
             if (_rankingGridLabel != null)
-                _rankingGridLabel.text = GridConfig.GridLabel(GameConstants.GridSizes[_rankingGridCursor]);
+            {
+                var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
+                _rankingGridLabel.text = PlayBoardCatalog.Label(board);
+            }
             RefreshRankingTable();
         }
 
         private void RefreshRankingTable()
         {
             var op = Operations[_rankingOpCursor];
-            var size = GameConstants.GridSizes[_rankingGridCursor];
-            var entries = Leaderboard.Padded(_store.GetLeaderboard(op, size));
+            var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
+            var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
             for (var i = 0; i < 10; i++)
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
         }
@@ -537,12 +567,14 @@ namespace Masu.UI
             }
         }
 
-        private void StartGame(Operation op, int size)
+        private void StartGame(Operation op, in PlayBoard board)
         {
             _operation = op;
-            _gridSize = size;
-            _state.Grid.Configure(size);
+            _gridSize = board.PlaySize;
+            _playMode = board.Mode;
+            _state.Grid.Configure(board.PlaySize);
             _state.Operation = op;
+            _state.PlayMode = board.Mode;
             ResetResultFlow();
             _resultScoreSaved = false;
             ShowScreen(AppScreen.Game);
@@ -561,6 +593,8 @@ namespace Masu.UI
             _scoreAnimating = false;
             _revealedHeaders.Clear();
             _scoreMarks.Clear();
+            _quickMarks.Clear();
+            _quickPopGen++;
             _displayScore = 0;
             _lastAccuracy = 0;
             _gridView.Rebuild(_state.Grid);
@@ -624,7 +658,7 @@ namespace Masu.UI
         }
 
         private void RefreshGrid() =>
-            _gridView.Refresh(_state, _revealedHeaders, _scoreMarks, _introAnimating, _scoreAnimating);
+            _gridView.Refresh(_state, _revealedHeaders, _scoreMarks, _quickMarks, _introAnimating, _scoreAnimating);
 
         private void UpdateSidebar()
         {
@@ -637,12 +671,12 @@ namespace Masu.UI
                 foreach (var kv in _scoreMarks)
                     if (kv.Value) correctN++;
             }
-            else if (s.Finished)
+            else if (s.Finished || s.PlayMode == GamePlayMode.Quick)
                 correctN = s.CorrectCount();
             else
                 correctN = s.FilledCount();
 
-            var correctText = s.Finished
+            var correctText = s.Finished || s.PlayMode == GamePlayMode.Quick
                 ? $"{s.CorrectCount()} / {playN}"
                 : $"{s.FilledCount()} / {playN}";
 
@@ -651,8 +685,8 @@ namespace Masu.UI
             var skillStars = Math.Max(0, starMax - Math.Min(starMax, s.PenaltyCount));
 
             _sidebarMode.text = _operation.LabelEn();
-            _sidebarGrid.text = GridConfig.GridLabel(_gridSize);
-            _sidebarHigh.text = $"{_store.HighScore(_operation, _gridSize):N0}";
+            _sidebarGrid.text = GridConfig.BoardLabel(_gridSize, _playMode);
+            _sidebarHigh.text = $"{_store.HighScore(_operation, _gridSize, _playMode):N0}";
             _sidebarSession.text = s.Finished ? $"{_displayScore:N0}" : "---";
             _sidebarCorrect.text = correctText;
             _sidebarAnswerStars.text = FormatStarGauge(answerStars, starMax);
@@ -671,13 +705,15 @@ namespace Masu.UI
             var elapsed = _state.StartRealtime.HasValue || _state.ScoringPlayElapsed.HasValue
                 ? _state.ElapsedSeconds()
                 : 0;
-            _sidebarTime.text = GameLogic.FormatTime(elapsed);
+            _sidebarTime.text = GameLogic.FormatTimeTabular(elapsed);
         }
 
         private void UpdateEndGuide()
         {
             if (_state.Finished || _introAnimating || _scoreAnimating)
                 _guideText.text = "";
+            else if (_playMode == GamePlayMode.Quick)
+                _guideText.text = "マス移動で採点・全マス正解でクリア";
             else
                 _guideText.text = "Enter キーで終了・採点の確認";
         }
@@ -744,7 +780,7 @@ namespace Masu.UI
             _displayScore = Scoring.ComputeSessionScore(elapsed, correct, playN, _operation);
             if (!_resultScoreSaved)
             {
-                _store.RecordSession(_operation, _gridSize, _displayScore);
+                _store.RecordSession(_operation, _gridSize, _playMode, _displayScore);
                 _resultScoreSaved = true;
             }
             _lastElapsedSeconds = elapsed;
@@ -815,11 +851,11 @@ namespace Masu.UI
         private void RefreshRecordConfirmPanel()
         {
             _resultConfirmOp.text = _operation.LabelEn();
-            _resultConfirmGrid.text = GridConfig.GridLabel(_gridSize);
+            _resultConfirmGrid.text = GridConfig.BoardLabel(_gridSize, _playMode);
 
             var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
             var (entries, rank) = Leaderboard.PreviewAfterInsert(
-                _store.GetLeaderboard(_operation, _gridSize),
+                _store.GetLeaderboard(_operation, _gridSize, _playMode),
                 previewName,
                 _displayScore,
                 _lastPlayedAt,
@@ -863,7 +899,7 @@ namespace Masu.UI
         {
             var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
             var (_, rank) = Leaderboard.PreviewAfterInsert(
-                _store.GetLeaderboard(_operation, _gridSize),
+                _store.GetLeaderboard(_operation, _gridSize, _playMode),
                 previewName,
                 _displayScore,
                 _lastPlayedAt,
@@ -884,7 +920,7 @@ namespace Masu.UI
             if (!string.IsNullOrEmpty(name))
             {
                 _store.AddLeaderboardEntry(
-                    _operation, _gridSize, name, _displayScore, _lastPlayedAt, _lastAccuracy,
+                    _operation, _gridSize, _playMode, name, _displayScore, _lastPlayedAt, _lastAccuracy,
                     _lastElapsedSeconds);
             }
             _entryName = "";
@@ -963,7 +999,7 @@ namespace Masu.UI
             {
                 if (_titleMenu == 0) { _modeCursor = 0; ShowScreen(AppScreen.Mode); }
                 else if (_titleMenu == 1) ShowScreen(AppScreen.Help);
-                else { _rankingOpCursor = 0; _rankingGridCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
+                else { _rankingOpCursor = 0; _rankingBoardCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) Application.Quit();
         }
@@ -993,8 +1029,35 @@ namespace Masu.UI
             if (Input.GetKeyDown(KeyCode.UpArrow)) { _gridCursor = NavVertical(_gridCursor, -1, n); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.DownArrow)) { _gridCursor = NavVertical(_gridCursor, 1, n); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                StartGame(_pendingOperation, GameConstants.GridSizes[_gridCursor]);
+            {
+                _pendingGridSize = GameConstants.GridSizes[_gridCursor];
+                _playStyleCursor = 0;
+                ShowScreen(AppScreen.PlayStyle);
+            }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Mode);
+        }
+
+        private void HandlePlayStyleInput()
+        {
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                _playStyleCursor = NavVertical(_playStyleCursor, -1, 2);
+                RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                _playStyleCursor = NavVertical(_playStyleCursor, 1, 2);
+                RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                var mode = _playStyleCursor == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
+                StartGame(_pendingOperation, new PlayBoard(_pendingGridSize, mode));
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                ShowScreen(AppScreen.Grid);
+            }
         }
 
         private void HandleRankingInput()
@@ -1011,12 +1074,14 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.UpArrow))
             {
-                _rankingGridCursor = (_rankingGridCursor - 1 + GameConstants.GridSizes.Length) % GameConstants.GridSizes.Length;
+                var n = PlayBoardCatalog.RankingBoards.Length;
+                _rankingBoardCursor = (_rankingBoardCursor - 1 + n) % n;
                 RefreshMenuHighlights();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
-                _rankingGridCursor = (_rankingGridCursor + 1) % GameConstants.GridSizes.Length;
+                var n = PlayBoardCatalog.RankingBoards.Length;
+                _rankingBoardCursor = (_rankingBoardCursor + 1) % n;
                 RefreshMenuHighlights();
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
@@ -1029,6 +1094,7 @@ namespace Masu.UI
             if (TryMoveFocus()) return;
             if (Input.GetKeyDown(KeyCode.Backspace))
             {
+                ClearQuickMarkOnEdit();
                 _state.HandleBackspace();
                 RefreshGrid();
                 UpdateEndGuide();
@@ -1036,19 +1102,24 @@ namespace Masu.UI
             }
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                _state.CommitFocus();
-                RefreshGrid();
-                PromptEndGame();
+                if (_playMode == GamePlayMode.Classic)
+                {
+                    _state.CommitFocus();
+                    RefreshGrid();
+                    PromptEndGame();
+                }
                 return;
             }
             if (_state.Operation == Operation.Sub && Input.GetKeyDown(KeyCode.Minus))
             {
+                ClearQuickMarkOnEdit();
                 _state.HandleChar('-');
                 RefreshGrid();
                 return;
             }
             if (_state.Operation == Operation.Div && Input.GetKeyDown(KeyCode.Period))
             {
+                ClearQuickMarkOnEdit();
                 _state.HandleChar('.');
                 RefreshGrid();
                 return;
@@ -1058,6 +1129,7 @@ namespace Masu.UI
                 var kc = KeyCode.Alpha0 + d;
                 if (Input.GetKeyDown(kc) || Input.GetKeyDown(KeyCode.Keypad0 + d))
                 {
+                    ClearQuickMarkOnEdit();
                     _state.HandleChar((char)('0' + d));
                     RefreshGrid();
                     return;
@@ -1068,15 +1140,95 @@ namespace Masu.UI
 
         private bool TryMoveFocus()
         {
-            int dr = 0, dc = 0;
-            if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)) dr = -1;
-            else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) dr = 1;
-            else if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) dc = -1;
-            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) dc = 1;
-            if (dr == 0 && dc == 0) return false;
+            if (!TryReadFocusMoveDelta(out var dr, out var dc))
+            {
+                _focusMoveNextRepeat = 0f;
+                return false;
+            }
+
+            var pressedThisFrame =
+                (dr == -1 && (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)))
+                || (dr == 1 && (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)))
+                || (dc == -1 && (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)))
+                || (dc == 1 && (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)));
+
+            var now = Time.unscaledTime;
+            if (pressedThisFrame)
+                _focusMoveNextRepeat = now + FocusMoveInitialDelay;
+            else
+            {
+                if (_focusMoveNextRepeat <= 0f)
+                    _focusMoveNextRepeat = now + FocusMoveInitialDelay;
+                if (now < _focusMoveNextRepeat)
+                    return false;
+                _focusMoveNextRepeat = now + FocusMoveRepeatInterval;
+            }
+
             _state.MoveFocus(dr, dc);
+            ApplyQuickGradeFeedback();
+            ClearQuickMarkAtFocus();
             RefreshGrid();
+            UpdateSidebar();
+            TryCompleteQuickMode();
             return true;
+        }
+
+        private void ApplyQuickGradeFeedback()
+        {
+            if (_playMode != GamePlayMode.Quick) return;
+            var ev = _state.TakeQuickGradeFeedback();
+            if (!ev.HasValue) return;
+            _quickMarks[(ev.Row, ev.Col)] = ev.Correct;
+            if (_quickPopRoutine != null) StopCoroutine(_quickPopRoutine);
+            _quickPopGen++;
+            _quickPopRoutine = StartCoroutine(PopQuickGradeMark(ev.Row, ev.Col, _quickPopGen));
+        }
+
+        private IEnumerator PopQuickGradeMark(int row, int col, int gen)
+        {
+            var scales = new[] { 1.35f, 0.92f, 1.12f, 1f };
+            foreach (var s in scales)
+            {
+                if (gen != _quickPopGen) yield break;
+                _gridView.PopMark(row, col, s);
+                RefreshGrid();
+                yield return new WaitForSeconds(0.045f);
+            }
+            _gridView.ResetMarkScales();
+            RefreshGrid();
+        }
+
+        private void ClearQuickMarkAtFocus()
+        {
+            if (_playMode != GamePlayMode.Quick) return;
+            var key = (_state.FocusRow, _state.FocusCol);
+            if (_quickMarks.TryGetValue(key, out var ok) && !ok)
+                _quickMarks.Remove(key);
+        }
+
+        private void ClearQuickMarkOnEdit()
+        {
+            if (_playMode != GamePlayMode.Quick) return;
+            _quickMarks.Remove((_state.FocusRow, _state.FocusCol));
+        }
+
+        private void TryCompleteQuickMode()
+        {
+            if (_playMode != GamePlayMode.Quick || _state.Finished || _introAnimating || _scoreAnimating)
+                return;
+            if (!_state.IsQuickClear()) return;
+            FinishWithScore();
+        }
+
+        private static bool TryReadFocusMoveDelta(out int dr, out int dc)
+        {
+            dr = 0;
+            dc = 0;
+            if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W)) dr = -1;
+            else if (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S)) dr = 1;
+            else if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A)) dc = -1;
+            else if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D)) dc = 1;
+            return dr != 0 || dc != 0;
         }
 
         private void HandleEndConfirmInput()

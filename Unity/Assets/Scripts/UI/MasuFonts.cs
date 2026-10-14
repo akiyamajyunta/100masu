@@ -15,7 +15,13 @@ namespace Masu.UI
             "Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic", "Segoe UI"
         };
 
+        private static readonly string[] TimerFontFamilies =
+        {
+            "Consolas", "Courier New", "MS Gothic", "Yu Gothic UI"
+        };
+
         private static readonly Dictionary<int, Font> Cache = new();
+        private static readonly Dictionary<int, Font> TimerCache = new();
 
         public static Font UiFont => GetForSize(36);
 
@@ -38,6 +44,22 @@ namespace Masu.UI
             text.font = GetForSize(size);
             if (!string.IsNullOrEmpty(text.text))
                 text.font.RequestCharactersInTexture(text.text, size, text.fontStyle);
+        }
+
+        public static void ApplyTimer(Text text, int fontSize)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!TimerCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(TimerFontFamilies, bucket);
+                TimerCache[bucket] = font;
+            }
+            text.font = font;
+            text.resizeTextForBestFit = false;
+            const string timerGlyphs = "0123456789:. ";
+            font.RequestCharactersInTexture(timerGlyphs, fontSize, text.fontStyle);
         }
 
         private static int BucketSize(int fontSize)

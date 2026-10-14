@@ -58,5 +58,16 @@ namespace Masu.Core
                 ? $"{minutes}:{sec:D2}.{centis:D2}"
                 : $"0:{sec:D2}.{centis:D2}";
         }
+
+        /// <summary>等幅タイマー表示用（桁ぶれを抑える）。</summary>
+        public static string FormatTimeTabular(double seconds)
+        {
+            var centisTotal = (int)Math.Round(Math.Max(0, seconds) * 100);
+            var minutes = Math.Min(99, centisTotal / 6000);
+            var rem = centisTotal % 6000;
+            var sec = rem / 100;
+            var centis = rem % 100;
+            return $"{minutes}:{sec:D2}.{centis:D2}";
+        }
     }
 }
