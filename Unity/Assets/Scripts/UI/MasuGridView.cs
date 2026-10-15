@@ -33,6 +33,35 @@ namespace Masu.UI
             public bool IsHeader;
         }
 
+        /// <summary>
+        /// セル単位の一過性エフェクト。残り時間 (T) を Tick で減らし、Refresh 時に見た目へ合成する。
+        /// 複数種類を同時に重ねられる（例: 採点の ○ パンチ + 背景フラッシュ + 揺れ）。
+        /// </summary>
+        private sealed class CellFx
+        {
+            public float FlashT, FlashDur, FlashStrength;
+            public Color FlashColor;
+            public float PunchT, PunchDur, PunchScale;
+            public float MarkPunchT, MarkPunchDur, MarkPunchScale;
+            public float ShakeT, ShakeDur, ShakeAmp;
+            public float EnterT, EnterDur;
+            public Vector2 EnterFrom;
+
+            public bool Any => FlashT > 0f || PunchT > 0f || MarkPunchT > 0f || ShakeT > 0f || EnterT > 0f;
+
+            public void Tick(float dt)
+            {
+                FlashT = Mathf.Max(0f, FlashT - dt);
+                PunchT = Mathf.Max(0f, PunchT - dt);
+                MarkPunchT = Mathf.Max(0f, MarkPunchT - dt);
+                ShakeT = Mathf.Max(0f, ShakeT - dt);
+                EnterT = Mathf.Max(0f, EnterT - dt);
+            }
+        }
+
+        private readonly Dictionary<(int r, int c), CellFx> _fx = new();
+        private readonly List<(int r, int c)> _fxDone = new();
+
         public MasuGridView(Transform parent)
         {
             var go = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup));
@@ -53,6 +82,7 @@ namespace Masu.UI
             foreach (Transform ch in _root)
                 Object.Destroy(ch.gameObject);
             _cells.Clear();
+            _fx.Clear();
 
             var n = grid.GridSize;
             FitCellSize(n);
@@ -196,26 +226,32 @@ namespace Masu.UI
                 if (!_cells.TryGetValue((row, col), out var w)) continue;
                 if (w.IsHeader)
                 {
+                    if (row == 0 && col == 0)
+                    {
+                        ApplyFx(w, (row, col), MasuTheme.PlusBg);
+                        continue;
+                    }
                     var revealed = !introAnimating || revealedHeaders.Contains((row, col));
-                    if (row == 0 && col == 0) continue;
+                    Color headerBg;
                     if (!revealed)
                     {
                         w.Label.text = "";
-                        w.Bg.color = MasuTheme.HeaderSlot;
+                        headerBg = MasuTheme.HeaderSlot;
                     }
                     else
                     {
                         w.Label.text = state.Header[row][col].ToString();
-                        w.Bg.color = row == 0 || col == 0 ? MasuTheme.HeaderNum : MasuTheme.HeaderSlot;
+                        headerBg = MasuTheme.HeaderNum;
                     }
                     w.Mark.gameObject.SetActive(false);
+                    ApplyFx(w, (row, col), headerBg);
                     continue;
                 }
 
                 if (!grid.IsPlayCell(row, col)) continue;
 
                 var focused = row == state.FocusRow && col == state.FocusCol && !state.Finished;
-                w.Bg.color = MasuTheme.CellEmpty;
+                var baseBg = MasuTheme.CellEmpty;
 
                 if (w.FocusRingOuter != null)
                 {
@@ -236,7 +272,7 @@ namespace Masu.UI
                 {
                     showMark = true;
                     markOk = quickOk;
-                    w.Bg.color = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
+                    baseBg = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
                 }
                 else if (!scoreAnimating && state.PlayMode == GamePlayMode.Quick
                          && state.Cells.TryGetValue((row, col), out var playCell)
@@ -244,7 +280,7 @@ namespace Masu.UI
                 {
                     showMark = true;
                     markOk = true;
-                    w.Bg.color = MasuTheme.CellQuickCorrect;
+                    baseBg = MasuTheme.CellQuickCorrect;
                 }
 
                 if (showMark)
@@ -264,31 +300,199 @@ namespace Masu.UI
                 }
 
                 w.Label.text = state.PlayCellDisplay(row, col);
+                ApplyFx(w, (row, col), baseBg);
             }
         }
 
-        public void PopCell(int row, int col, float scale)
+        // ------------------------------------------------------------------
+        // セル演出
+        // ------------------------------------------------------------------
+
+        /// <summary>毎フレーム呼ぶ。全セルの演出の残り時間を進め、終わったものを捨てる。</summary>
+        public void Tick(float dt)
         {
-            if (!_cells.TryGetValue((row, col), out var w)) return;
-            w.Label.transform.localScale = Vector3.one * scale;
+            if (_fx.Count == 0) return;
+            _fxDone.Clear();
+            foreach (var kv in _fx)
+            {
+                kv.Value.Tick(dt);
+                if (!kv.Value.Any) _fxDone.Add(kv.Key);
+            }
+            foreach (var key in _fxDone)
+            {
+                _fx.Remove(key);
+                if (_cells.TryGetValue(key, out var w)) ResetWidgetPose(w);
+            }
         }
 
-        public void PopMark(int row, int col, float scale)
+        public void ClearFx()
         {
-            if (!_cells.TryGetValue((row, col), out var w)) return;
-            w.Mark.transform.localScale = Vector3.one * scale;
+            _fx.Clear();
+            foreach (var w in _cells.Values) ResetWidgetPose(w);
         }
 
-        public void ResetMarkScales()
+        private static void ResetWidgetPose(CellWidgets w)
         {
-            foreach (var w in _cells.Values)
-                w.Mark.transform.localScale = Vector3.one;
+            w.Label.transform.localScale = Vector3.one;
+            w.Label.rectTransform.anchoredPosition = Vector2.zero;
+            var lc = w.Label.color;
+            lc.a = 1f;
+            w.Label.color = lc;
+            w.Mark.transform.localScale = Vector3.one;
         }
 
-        public void ResetPopScales()
+        private CellFx FxFor(int row, int col)
         {
-            foreach (var w in _cells.Values)
-                w.Label.transform.localScale = Vector3.one;
+            if (!_fx.TryGetValue((row, col), out var fx))
+            {
+                fx = new CellFx();
+                _fx[(row, col)] = fx;
+            }
+            return fx;
+        }
+
+        private static float EaseOutBack(float t)
+        {
+            t = Mathf.Clamp01(t);
+            const float c1 = 1.70158f;
+            const float c3 = c1 + 1f;
+            return 1f + c3 * Mathf.Pow(t - 1f, 3f) + c1 * Mathf.Pow(t - 1f, 2f);
+        }
+
+        private void ApplyFx(CellWidgets w, (int r, int c) key, Color baseBg)
+        {
+            if (!_fx.TryGetValue(key, out var fx))
+            {
+                w.Bg.color = baseBg;
+                return;
+            }
+
+            var bg = baseBg;
+            var labelScale = 1f;
+            var markScale = 1f;
+            var labelAlpha = 1f;
+            var offset = Vector2.zero;
+
+            if (fx.FlashT > 0f && fx.FlashDur > 0f)
+            {
+                var p = fx.FlashT / fx.FlashDur; // 1 → 0 で減衰
+                bg = Color.Lerp(baseBg, fx.FlashColor, p * p * fx.FlashStrength);
+            }
+            if (fx.PunchT > 0f && fx.PunchDur > 0f)
+            {
+                var p = 1f - fx.PunchT / fx.PunchDur;
+                labelScale = Mathf.LerpUnclamped(fx.PunchScale, 1f, EaseOutBack(p));
+            }
+            if (fx.MarkPunchT > 0f && fx.MarkPunchDur > 0f)
+            {
+                var p = 1f - fx.MarkPunchT / fx.MarkPunchDur;
+                markScale = Mathf.LerpUnclamped(fx.MarkPunchScale, 1f, EaseOutBack(p));
+            }
+            if (fx.ShakeT > 0f && fx.ShakeDur > 0f)
+            {
+                var p = fx.ShakeT / fx.ShakeDur;
+                offset.x += Mathf.Sin(fx.ShakeT * 80f) * fx.ShakeAmp * p;
+            }
+            if (fx.EnterT > 0f && fx.EnterDur > 0f)
+            {
+                var p = 1f - fx.EnterT / fx.EnterDur;
+                offset += fx.EnterFrom * (1f - EaseOutBack(p));
+                labelAlpha = Mathf.Clamp01(p * 2.5f);
+            }
+
+            w.Bg.color = bg;
+            w.Label.transform.localScale = Vector3.one * Mathf.Max(0.01f, labelScale);
+            w.Label.rectTransform.anchoredPosition = offset;
+            var lc = w.Label.color;
+            lc.a = labelAlpha;
+            w.Label.color = lc;
+            w.Mark.transform.localScale = Vector3.one * Mathf.Max(0.01f, markScale);
+        }
+
+        public void PlayFlash(int row, int col, Color color, float duration, float strength)
+        {
+            var fx = FxFor(row, col);
+            fx.FlashColor = color;
+            fx.FlashDur = fx.FlashT = Mathf.Max(0.01f, duration);
+            fx.FlashStrength = Mathf.Clamp01(strength);
+        }
+
+        public void PlayPunch(int row, int col, float scale, float duration)
+        {
+            var fx = FxFor(row, col);
+            fx.PunchScale = scale;
+            fx.PunchDur = fx.PunchT = Mathf.Max(0.01f, duration);
+        }
+
+        public void PlayMarkPunch(int row, int col, float scale, float duration)
+        {
+            var fx = FxFor(row, col);
+            fx.MarkPunchScale = scale;
+            fx.MarkPunchDur = fx.MarkPunchT = Mathf.Max(0.01f, duration);
+        }
+
+        public void PlayShake(int row, int col, float amplitude, float duration)
+        {
+            var fx = FxFor(row, col);
+            fx.ShakeAmp = amplitude;
+            fx.ShakeDur = fx.ShakeT = Mathf.Max(0.01f, duration);
+        }
+
+        /// <summary>イントロ: ヘッダー数字が外側（左列は左から、上段は上から）から滑り込んで着地。</summary>
+        public void PlayHeaderEnter(int row, int col, float duration)
+        {
+            var fx = FxFor(row, col);
+            var dist = _cellSize * 0.9f;
+            fx.EnterFrom = col == 0 ? new Vector2(-dist, 0f) : new Vector2(0f, dist);
+            fx.EnterDur = fx.EnterT = Mathf.Max(0.01f, duration);
+            PlayFlash(row, col, MasuTheme.CursorGold, duration, 0.5f);
+        }
+
+        /// <summary>演算子マス（左上）の強調パンチ。イントロの締め・採点開始の合図に使う。</summary>
+        public void PlayOperatorPunch()
+        {
+            PlayPunch(0, 0, 1.6f, 0.4f);
+            PlayFlash(0, 0, Color.white, 0.4f, 0.6f);
+        }
+
+        /// <summary>数字入力: 文字がポンと出て背景が一瞬金色に。</summary>
+        public void PlayInputPunch(int row, int col)
+        {
+            PlayPunch(row, col, 1.3f, 0.2f);
+            PlayFlash(row, col, MasuTheme.CursorGold, 0.22f, 0.4f);
+        }
+
+        /// <summary>入力拒否（範囲外・ロック中）: 小さく横に震えて赤く。</summary>
+        public void PlayRejectShake(int row, int col)
+        {
+            PlayShake(row, col, Mathf.Max(2f, _cellSize * 0.06f), 0.2f);
+            PlayFlash(row, col, MasuTheme.WrongMark, 0.2f, 0.35f);
+        }
+
+        /// <summary>Backspace: 控えめな揺れと薄いフラッシュ。</summary>
+        public void PlayEraseFeedback(int row, int col)
+        {
+            PlayShake(row, col, Mathf.Max(1.5f, _cellSize * 0.035f), 0.12f);
+            PlayFlash(row, col, MasuTheme.TextDim, 0.15f, 0.25f);
+        }
+
+        /// <summary>フォーカス移動先の軽いフラッシュ（連打中でもうるさくならない強さ）。</summary>
+        public void PlayFocusMoved(int row, int col)
+        {
+            PlayFlash(row, col, MasuTheme.FocusRingBright, 0.18f, 0.22f);
+        }
+
+        /// <summary>採点: ○× をスタンプ。正解は緑フラッシュ、不正解は赤フラッシュ + 揺れ。</summary>
+        public void PlayGradeStamp(int row, int col, bool correct, float duration)
+        {
+            PlayMarkPunch(row, col, 1.7f, duration);
+            if (correct)
+                PlayFlash(row, col, MasuTheme.CorrectMark, duration, 0.45f);
+            else
+            {
+                PlayFlash(row, col, MasuTheme.WrongMark, duration, 0.6f);
+                PlayShake(row, col, Mathf.Max(2.5f, _cellSize * 0.07f), duration * 0.9f);
+            }
         }
     }
 }

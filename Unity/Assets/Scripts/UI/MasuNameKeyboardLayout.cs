@@ -11,6 +11,10 @@ namespace Masu.UI
         public const float RowStep = 34f;
         /// <summary>画面下端から最下段キー行までの余白。</summary>
         public const float BottomMargin = 100f;
+        /// <summary>スライドイン/アウト時に画面外へ逃がす距離（キーボード全高より大きく）。</summary>
+        public const float SlideHiddenOffset = 380f;
+        public const float SlideInSeconds = 0.32f;
+        public const float SlideOutSeconds = 0.26f;
 
         public static float ColumnStep => KeyboardWidth / MasuNameKeyboard.GridColumns;
     }

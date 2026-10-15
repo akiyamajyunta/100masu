@@ -37,8 +37,6 @@ namespace Masu.UI
         private readonly HashSet<(int r, int c)> _revealedHeaders = new();
         private readonly Dictionary<(int r, int c), bool> _scoreMarks = new();
         private readonly Dictionary<(int r, int c), bool> _quickMarks = new();
-        private Coroutine _quickPopRoutine;
-        private int _quickPopGen;
 
         private int _displayScore;
         private float _lastAccuracy;
@@ -54,6 +52,17 @@ namespace Masu.UI
         private int _endConfirmChoice;
         private Text _endConfirmYes;
         private Text _endConfirmNo;
+        private Text[] _endConfirmLabels;
+
+        // 演出系: 選択スライドイン / 決定フラッシュ / 暗転 / キーボードスライド
+        private readonly Dictionary<Text[], int> _listCursorMemo = new();
+        private readonly Dictionary<Text, Vector2> _labelBasePos = new();
+        private readonly Dictionary<Text, Coroutine> _labelAnims = new();
+        private bool _menuBusy;
+        private Image _fadeImage;
+        private Text _fadeCaption;
+        private RectTransform _keyboardRoot;
+        private Coroutine _keyboardSlideRoutine;
 
         private Transform _menuRoot;
         private Transform _gameRoot;
@@ -123,6 +132,18 @@ namespace Masu.UI
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
 
         private static readonly string[] TitleMenuItems = { "はじめる", "操作説明", "記録" };
+        private static readonly string[] PauseMenuItems = { "ゲームに戻る", "メニューに戻る" };
+        private static readonly string[] EndConfirmItems = { "はい", "いいえ" };
+
+        private const float IntroHeaderBudgetSec = 1.0f;
+        private const float IntroHeaderEnterSec = 0.3f;
+        private const float ScoreStartDelaySec = 0.35f;
+
+        private const float SelectSlideOffsetX = -36f;
+        private const float SelectSlideSeconds = 0.22f;
+        private const int SelectFlashCount = 2;
+        private const int DecideFlashCount = 3;
+        private const float DecideFlashInterval = 0.055f;
 
         private const float GameFrameRegionScaleBase = 0.9f;
         private const float GameFrameRegionScaleX = GameFrameRegionScaleBase * 0.9f * 1.2f;
@@ -169,12 +190,6 @@ namespace Masu.UI
 
         private void StopGameCoroutines()
         {
-            _quickPopGen++;
-            if (_quickPopRoutine != null)
-            {
-                StopCoroutine(_quickPopRoutine);
-                _quickPopRoutine = null;
-            }
             if (_timerRoutine != null)
             {
                 StopCoroutine(_timerRoutine);
@@ -194,6 +209,9 @@ namespace Masu.UI
 
         private void Update()
         {
+            // 決定フラッシュ・暗転・キーボード退場中は入力を受け付けない
+            if (_menuBusy) return;
+
             if (_endConfirmVisible)
             {
                 HandleEndConfirmInput();
@@ -229,11 +247,11 @@ namespace Masu.UI
                 case AppScreen.PlayStyle: HandlePlayStyleInput(); break;
                 case AppScreen.ScoreRanking: HandleRankingInput(); break;
                 case AppScreen.Game:
+                    // セル演出は毎フレーム進める（イントロ・採点中も含む）
+                    _gridView.Tick(Time.unscaledDeltaTime);
                     if (!_state.Finished && !_introAnimating && !_scoreAnimating)
-                    {
                         _gridView.TickFocusPulse(Time.deltaTime);
-                        _gridView.Refresh(_state, _revealedHeaders, _scoreMarks, _quickMarks, _introAnimating, _scoreAnimating);
-                    }
+                    RefreshGrid();
                     if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
                         OpenPauseMenu();
                     else
@@ -263,11 +281,26 @@ namespace Masu.UI
             BuildResultOverlay();
             BuildEndConfirm();
             BuildPauseOverlay(canvasGo.transform);
+            BuildFadeOverlay(canvasGo.transform);
 
             _gameRoot.gameObject.SetActive(false);
             _resultRoot.gameObject.SetActive(false);
             _endConfirmRoot.gameObject.SetActive(false);
             _pauseRoot.gameObject.SetActive(false);
+            _fadeImage.gameObject.SetActive(false);
+        }
+
+        /// <summary>ゲーム開始時の暗転用。常に最前面に出してから使う。</summary>
+        private void BuildFadeOverlay(Transform canvas)
+        {
+            var go = MasuUiFactory.CreatePanel(canvas, "FadeOverlay", new Color(0f, 0f, 0f, 0f));
+            _fadeImage = go.GetComponent<Image>();
+            _fadeCaption = MasuUiFactory.CreateText(go.transform, "Caption", "", 30, MasuTheme.TextDim);
+            _fadeCaption.rectTransform.anchorMin = _fadeCaption.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _fadeCaption.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _fadeCaption.rectTransform.anchoredPosition = Vector2.zero;
+            _fadeCaption.rectTransform.sizeDelta = new Vector2(900, 48);
+            MasuUiAnimations.SetAlpha(_fadeCaption, 0f);
         }
 
         private void BuildMenuPanels()
@@ -377,11 +410,10 @@ namespace Masu.UI
             caption.rectTransform.anchoredPosition = new Vector2(0, 72);
             caption.rectTransform.sizeDelta = new Vector2(400, 48);
 
-            _pauseLabels = new Text[2];
-            var pauseItems = new[] { "ゲームに戻る", "メニューに戻る" };
-            for (var i = 0; i < pauseItems.Length; i++)
+            _pauseLabels = new Text[PauseMenuItems.Length];
+            for (var i = 0; i < PauseMenuItems.Length; i++)
             {
-                _pauseLabels[i] = MasuUiFactory.CreateText(box.transform, $"Pause{i}", pauseItems[i], 28, MasuTheme.Text);
+                _pauseLabels[i] = MasuUiFactory.CreateText(box.transform, $"Pause{i}", PauseMenuItems[i], 28, MasuTheme.Text);
                 _pauseLabels[i].rectTransform.anchorMin = _pauseLabels[i].rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
                 _pauseLabels[i].rectTransform.anchoredPosition = new Vector2(0, 10 - i * 48);
                 _pauseLabels[i].rectTransform.sizeDelta = new Vector2(420, 40);
@@ -603,7 +635,10 @@ namespace Masu.UI
             MasuFonts.ApplyKeyboard(_resultEntryLine, MasuRankingLayout.RowFontSize);
             MasuUiFactory.ApplyBlackOutline(_resultEntryLine, 1.4f);
 
-            BuildNameKeyboardUi(_resultEntryPanel.transform);
+            // キーボードだけを下からスライドさせるため、専用のルートにぶら下げる
+            var keyboardRootGo = MasuUiFactory.CreatePanel(_resultEntryPanel.transform, "KeyboardRoot", Color.clear);
+            _keyboardRoot = keyboardRootGo.GetComponent<RectTransform>();
+            BuildNameKeyboardUi(_keyboardRoot);
         }
 
         private void BuildNameKeyboardUi(Transform parent)
@@ -662,6 +697,7 @@ namespace Masu.UI
             _endConfirmNo.rectTransform.anchorMin = _endConfirmNo.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _endConfirmNo.rectTransform.anchoredPosition = new Vector2(0, -52);
             _endConfirmNo.rectTransform.sizeDelta = new Vector2(320, 36);
+            _endConfirmLabels = new[] { _endConfirmYes, _endConfirmNo };
         }
 
         private void ShowScreen(AppScreen screen)
@@ -674,8 +710,19 @@ namespace Masu.UI
             _gameRoot.gameObject.SetActive(screen == AppScreen.Game);
             foreach (var kv in _menuPanels)
                 kv.Value.SetActive(kv.Key == screen);
+            // 画面に入った直後は、カーソルが変わっていなくても選択項目をスライドインさせる
+            ForgetListCursor(LabelsForScreen(screen));
             RefreshMenuHighlights();
         }
+
+        private Text[] LabelsForScreen(AppScreen screen) => screen switch
+        {
+            AppScreen.Title => _titleLabels,
+            AppScreen.Mode => _modeLabels,
+            AppScreen.Grid => _gridLabels,
+            AppScreen.PlayStyle => _playStyleLabels,
+            _ => null
+        };
 
         private void DismissGameOverlays()
         {
@@ -691,18 +738,14 @@ namespace Masu.UI
             if (_endConfirmRoot != null)
                 _endConfirmRoot.gameObject.SetActive(visible);
             if (visible)
+            {
+                ForgetListCursor(_endConfirmLabels);
                 RefreshEndConfirmHighlight();
+            }
         }
 
-        private void RefreshEndConfirmHighlight()
-        {
-            if (_endConfirmYes == null || _endConfirmNo == null) return;
-            var yesSel = _endConfirmChoice == 0;
-            _endConfirmYes.text = (yesSel ? "▶ " : "  ") + "はい";
-            _endConfirmYes.color = yesSel ? MasuTheme.CursorGold : MasuTheme.Text;
-            _endConfirmNo.text = (!yesSel ? "▶ " : "  ") + "いいえ";
-            _endConfirmNo.color = !yesSel ? MasuTheme.CursorGold : MasuTheme.Text;
-        }
+        private void RefreshEndConfirmHighlight() =>
+            HighlightList(_endConfirmLabels, _endConfirmChoice, EndConfirmItems);
 
         private void CheckScreenSizeChanged()
         {
@@ -767,17 +810,129 @@ namespace Masu.UI
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
         }
 
-        private static void HighlightList(Text[] labels, int cursor, string[] items)
+        /// <summary>
+        /// リストのハイライト更新。カーソルが動いた（または ForgetListCursor 済み）ときだけ
+        /// 選択項目を横からスライドイン＋点滅させる。
+        /// </summary>
+        private void HighlightList(Text[] labels, int cursor, string[] items)
         {
-            if (labels == null) return;
+            if (labels == null || labels.Length == 0) return;
+            var changed = !_listCursorMemo.TryGetValue(labels, out var prev) || prev != cursor;
+            _listCursorMemo[labels] = cursor;
+
             for (var i = 0; i < labels.Length; i++)
             {
                 var sel = i == cursor;
                 labels[i].text = (sel ? "▶ " : "  ") + items[i];
-                labels[i].color = sel ? MasuTheme.CursorGold : MasuTheme.Text;
+                if (!sel)
+                {
+                    RestoreLabelPose(labels[i]);
+                    labels[i].color = MasuTheme.Text;
+                }
             }
+
+            if (cursor < 0 || cursor >= labels.Length) return;
+            var selected = labels[cursor];
+            if (changed && selected.gameObject.activeInHierarchy)
+                PlaySelectSlideIn(selected);
+            else if (!_labelAnims.ContainsKey(selected))
+                selected.color = MasuTheme.CursorGold;
         }
 
+        private void ForgetListCursor(Text[] labels)
+        {
+            if (labels != null) _listCursorMemo.Remove(labels);
+        }
+
+        private Vector2 BasePosOf(Text label)
+        {
+            if (!_labelBasePos.TryGetValue(label, out var pos))
+            {
+                pos = label.rectTransform.anchoredPosition;
+                _labelBasePos[label] = pos;
+            }
+            return pos;
+        }
+
+        /// <summary>進行中の演出を止め、位置を定位置へ戻す。</summary>
+        private void RestoreLabelPose(Text label)
+        {
+            if (label == null) return;
+            if (_labelAnims.TryGetValue(label, out var co))
+            {
+                if (co != null) StopCoroutine(co);
+                _labelAnims.Remove(label);
+            }
+            if (_labelBasePos.TryGetValue(label, out var pos))
+                label.rectTransform.anchoredPosition = pos;
+        }
+
+        private void PlaySelectSlideIn(Text label)
+        {
+            RestoreLabelPose(label);
+            var basePos = BasePosOf(label);
+            _labelAnims[label] = StartCoroutine(RunLabelAnim(label,
+                MasuUiAnimations.SlideInFlash(label, basePos, SelectSlideOffsetX, SelectSlideSeconds,
+                    MasuTheme.CursorGold, Color.white, SelectFlashCount)));
+        }
+
+        private IEnumerator RunLabelAnim(Text label, IEnumerator inner)
+        {
+            yield return inner;
+            _labelAnims.Remove(label);
+        }
+
+        /// <summary>決定: 選択項目を点滅させてから then を実行。演出中は入力を止める。</summary>
+        private void Decide(Text label, Action then)
+        {
+            if (_menuBusy) return;
+            _menuBusy = true;
+            StartCoroutine(DecideRoutine(label, then));
+        }
+
+        private IEnumerator DecideRoutine(Text label, Action then)
+        {
+            if (label != null)
+            {
+                RestoreLabelPose(label);
+                yield return MasuUiAnimations.Flash(label, MasuTheme.CursorGold, Color.white,
+                    DecideFlashCount, DecideFlashInterval);
+            }
+            _menuBusy = false;
+            then?.Invoke();
+        }
+
+        /// <summary>プレイスタイル決定 → 暗転 → 盤面準備 → 明転 → イントロ開始。</summary>
+        private IEnumerator GameStartTransition(Operation op, PlayBoard board)
+        {
+            _menuBusy = true;
+            try
+            {
+                _fadeImage.transform.SetAsLastSibling();
+                _fadeImage.gameObject.SetActive(true);
+                MasuUiAnimations.SetAlpha(_fadeImage, 0f);
+                MasuUiAnimations.SetAlpha(_fadeCaption, 0f);
+                _fadeCaption.text = $"{op.LabelJa()}　{GridConfig.BoardLabel(board.PlaySize, board.Mode)}";
+
+                yield return MasuUiAnimations.FadeAlpha(_fadeImage, 0f, 1f, 0.35f, MasuUiAnimations.EaseInCubic);
+                yield return MasuUiAnimations.FadeAlpha(_fadeCaption, 0f, 1f, 0.25f);
+                yield return new WaitForSecondsRealtime(0.55f);
+                yield return MasuUiAnimations.FadeAlpha(_fadeCaption, 1f, 0f, 0.2f);
+
+                StartGame(op, board);
+                yield return null; // レイアウト確定を 1 フレーム待つ
+                yield return MasuUiAnimations.FadeAlpha(_fadeImage, 1f, 0f, 0.5f, MasuUiAnimations.EaseOutCubic);
+            }
+            finally
+            {
+                _fadeImage.gameObject.SetActive(false);
+                _menuBusy = false;
+            }
+            if (_screen == AppScreen.Game)
+                BeginIntro();
+        }
+
+        /// <summary>盤面の準備まで（イントロは BeginIntro で別途開始）。</summary>
         private void StartGame(Operation op, in PlayBoard board)
         {
             _operation = op;
@@ -789,10 +944,10 @@ namespace Masu.UI
             ResetResultFlow();
             _resultScoreSaved = false;
             ShowScreen(AppScreen.Game);
-            RestartGame();
+            PrepareGameBoard();
         }
 
-        private void RestartGame()
+        private void PrepareGameBoard()
         {
             _introGen++;
             _scoreGen++;
@@ -805,17 +960,21 @@ namespace Masu.UI
             _revealedHeaders.Clear();
             _scoreMarks.Clear();
             _quickMarks.Clear();
-            _quickPopGen++;
             _displayScore = 0;
             _lastAccuracy = 0;
             _gridView.Rebuild(_state.Grid);
             var layoutGen = _layoutGen;
             StartCoroutine(RebuildGridAfterLayout(layoutGen));
             _state.Reset(startClock: false);
-            _gridView.ResetPopScales();
+            _gridView.ClearFx();
             RefreshGrid();
             UpdateSidebar();
             UpdateEndGuide();
+        }
+
+        private void BeginIntro()
+        {
+            if (_introRoutine != null) StopCoroutine(_introRoutine);
             _introRoutine = StartCoroutine(RunIntroAnimation());
         }
 
@@ -828,6 +987,10 @@ namespace Masu.UI
             RefreshGrid();
         }
 
+        /// <summary>
+        /// イントロ: 左列の数字が左から、上段の数字が上から順に滑り込んで着地（金色フラッシュ）。
+        /// 全部そろったら演算子マスがパンチし、盤面を斜めの光の波がひと撫でしてプレイ開始。
+        /// </summary>
         private IEnumerator RunIntroAnimation()
         {
             var gen = _introGen;
@@ -836,25 +999,20 @@ namespace Masu.UI
                 _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
                 _timerRoutine = StartCoroutine(TickTimer());
                 var cells = _state.Grid.HeaderRevealCells();
-                var (scaleMs, staggerMs) = AnimTimings.IntroAnimTimings(cells.Count);
-                var scales = AnimTimings.IntroPopScales();
+                var stagger = Mathf.Clamp(IntroHeaderBudgetSec / Mathf.Max(1, cells.Count), 0.03f, 0.12f);
 
-                for (var i = 0; i < cells.Count; i++)
+                foreach (var (r, c) in cells)
                 {
                     if (gen != _introGen) yield break;
-                    var (r, c) = cells[i];
-                    foreach (var s in scales)
-                    {
-                        _gridView.PopCell(r, c, s);
-                        RefreshGrid();
-                        yield return new WaitForSeconds(scaleMs / 1000f);
-                    }
                     _revealedHeaders.Add((r, c));
-                    _gridView.PopCell(r, c, 1f);
-                    RefreshGrid();
-                    yield return new WaitForSeconds(staggerMs / 1000f);
+                    _gridView.PlayHeaderEnter(r, c, IntroHeaderEnterSec);
+                    yield return new WaitForSecondsRealtime(stagger);
                 }
 
+                yield return new WaitForSecondsRealtime(0.18f);
+                if (gen != _introGen) yield break;
+                _gridView.PlayOperatorPunch();
+                yield return PlayBoardWave(MasuTheme.CursorGold, 0.35f, 0.28f, 0.022f, punchMarks: false);
                 if (gen != _introGen) yield break;
             }
             finally
@@ -868,9 +1026,28 @@ namespace Masu.UI
         {
             if (gen != _introGen) return;
             _introAnimating = false;
-            _gridView.ResetPopScales();
             RefreshGrid();
             UpdateEndGuide();
+        }
+
+        /// <summary>左上から右下へ、斜め 1 列ずつ順にフラッシュする光の波。</summary>
+        private IEnumerator PlayBoardWave(Color color, float strength, float cellDuration, float diagonalStagger, bool punchMarks)
+        {
+            var g = _state.Grid;
+            var minD = g.PlayRowMin + g.PlayColMin;
+            var maxD = g.PlayRowMax + g.PlayColMax;
+            for (var d = minD; d <= maxD; d++)
+            {
+                for (var r = g.PlayRowMin; r <= g.PlayRowMax; r++)
+                {
+                    var c = d - r;
+                    if (!g.IsPlayCell(r, c)) continue;
+                    _gridView.PlayFlash(r, c, color, cellDuration, strength);
+                    if (punchMarks) _gridView.PlayMarkPunch(r, c, 1.3f, cellDuration);
+                }
+                yield return new WaitForSecondsRealtime(diagonalStagger);
+            }
+            yield return new WaitForSecondsRealtime(cellDuration);
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -980,47 +1157,67 @@ namespace Masu.UI
             UpdateSidebar();
             RefreshGrid();
             if (_scoreRoutine != null) StopCoroutine(_scoreRoutine);
+            _scoreAnimating = true;
             if (_playMode == GamePlayMode.Quick)
             {
+                // クイックは離脱時に採点済み。全マス○なので祝福の金色ウェーブだけ流す
                 foreach (var (r, c) in _state.Grid.PlayCellsScoreOrder())
                     _scoreMarks[(r, c)] = _state.Cells[(r, c)].State == CellState.Correct;
-                _scoreAnimating = false;
                 RefreshGrid();
-                FinalizeScore();
-                ShowScoreResults();
+                _scoreRoutine = StartCoroutine(RunQuickClearCelebration());
                 return;
             }
-            _scoreAnimating = true;
             _scoreRoutine = StartCoroutine(RunScoreAnimation());
         }
 
+        /// <summary>
+        /// 採点: 演算子マスの合図 → 列ごとに ○× をスタンプ（正解=緑、不正解=赤+揺れ）→
+        /// 全問正解なら金色の波、そうでなければ一呼吸おいてリザルトへ。
+        /// </summary>
         private IEnumerator RunScoreAnimation()
         {
             var gen = _scoreGen;
             var cells = _state.Grid.PlayCellsScoreOrder();
             var (scaleMs, staggerMs) = AnimTimings.ScoreAnimTimings(cells.Count);
-            var scales = AnimTimings.ScorePopScales();
+            var perCell = (AnimTimings.ScorePopScales().Length * scaleMs + staggerMs) / 1000f;
+            var stampSec = Mathf.Clamp(perCell * 2.5f, 0.18f, 0.38f);
 
-            for (var i = 0; i < cells.Count; i++)
+            _gridView.PlayOperatorPunch();
+            yield return new WaitForSecondsRealtime(ScoreStartDelaySec);
+
+            foreach (var (r, c) in cells)
             {
                 if (gen != _scoreGen) yield break;
-                var (r, c) = cells[i];
-                foreach (var s in scales)
-                {
-                    _gridView.PopCell(r, c, s);
-                    RefreshGrid();
-                    yield return new WaitForSeconds(scaleMs / 1000f);
-                }
-                var ok = _playMode == GamePlayMode.Quick
-                    ? _state.Cells[(r, c)].State == CellState.Correct
-                    : _state.GradeCellAtScore(r, c);
+                var ok = _state.GradeCellAtScore(r, c);
                 _scoreMarks[(r, c)] = ok;
-                _gridView.PopCell(r, c, 1f);
+                _gridView.PlayGradeStamp(r, c, ok, stampSec);
                 UpdateSidebar();
-                RefreshGrid();
-                yield return new WaitForSeconds(staggerMs / 1000f);
+                yield return new WaitForSecondsRealtime(perCell);
             }
 
+            if (gen != _scoreGen) yield break;
+            var allCorrect = _state.WrongCount() == 0 && _state.EmptyCount() == 0;
+            if (allCorrect)
+            {
+                _gridView.PlayOperatorPunch();
+                yield return PlayBoardWave(MasuTheme.CursorGold, 0.7f, 0.45f, 0.035f, punchMarks: true);
+            }
+            else
+                yield return new WaitForSecondsRealtime(0.4f);
+
+            if (gen != _scoreGen) yield break;
+            _scoreAnimating = false;
+            FinalizeScore();
+            ShowScoreResults();
+        }
+
+        private IEnumerator RunQuickClearCelebration()
+        {
+            var gen = _scoreGen;
+            _gridView.PlayOperatorPunch();
+            yield return new WaitForSecondsRealtime(0.15f);
+            if (gen != _scoreGen) yield break;
+            yield return PlayBoardWave(MasuTheme.CursorGold, 0.7f, 0.45f, 0.035f, punchMarks: true);
             if (gen != _scoreGen) yield break;
             _scoreAnimating = false;
             FinalizeScore();
@@ -1076,6 +1273,49 @@ namespace Masu.UI
             _entryName = "";
             _recordConfirmEnterOpensKeyboard = true;
             _nameKeyboard = new MasuNameKeyboard();
+            ForgetListCursor(_resultMenuLabels);
+        }
+
+        /// <summary>3択メニューへ戻る（選択項目をスライドインさせる）。</summary>
+        private void ShowResultMenuView()
+        {
+            _resultView = ResultView.Menu;
+            ForgetListCursor(_resultMenuLabels);
+            ShowResultPanel();
+        }
+
+        /// <summary>名前入力へ。キーボードは画面下からスライドアップ。</summary>
+        private void EnterNameEntryView()
+        {
+            _recordConfirmEnterOpensKeyboard = false;
+            _nameKeyboard = new MasuNameKeyboard();
+            _resultView = ResultView.Entry;
+            ShowResultPanel();
+            PlayKeyboardSlide(show: true, then: null);
+        }
+
+        private void PlayKeyboardSlide(bool show, Action then)
+        {
+            if (_keyboardRoot == null)
+            {
+                then?.Invoke();
+                return;
+            }
+            if (_keyboardSlideRoutine != null)
+                StopCoroutine(_keyboardSlideRoutine);
+            _keyboardSlideRoutine = StartCoroutine(KeyboardSlideRoutine(show, then));
+        }
+
+        private IEnumerator KeyboardSlideRoutine(bool show, Action then)
+        {
+            var hiddenY = -MasuNameKeyboardLayout.SlideHiddenOffset;
+            var fromY = show ? hiddenY : _keyboardRoot.anchoredPosition.y;
+            var toY = show ? 0f : hiddenY;
+            var seconds = show ? MasuNameKeyboardLayout.SlideInSeconds : MasuNameKeyboardLayout.SlideOutSeconds;
+            Func<float, float> ease = show ? MasuUiAnimations.EaseOutCubic : MasuUiAnimations.EaseInCubic;
+            yield return MasuUiAnimations.SlideY(_keyboardRoot, fromY, toY, seconds, ease);
+            _keyboardSlideRoutine = null;
+            then?.Invoke();
         }
 
         private void ShowResultPanel()
@@ -1096,15 +1336,8 @@ namespace Masu.UI
                 RefreshNameEntryPanel();
         }
 
-        private void HighlightResultMenu()
-        {
-            for (var i = 0; i < _resultMenuLabels.Length; i++)
-            {
-                var sel = i == _resultMenu;
-                _resultMenuLabels[i].text = (sel ? "▶ " : "  ") + ResultMenuItems[i];
-                _resultMenuLabels[i].color = sel ? MasuTheme.CursorGold : MasuTheme.Text;
-            }
-        }
+        private void HighlightResultMenu() =>
+            HighlightList(_resultMenuLabels, _resultMenu, ResultMenuItems);
 
         private void RefreshRecordConfirmPanel()
         {
@@ -1183,9 +1416,21 @@ namespace Masu.UI
             }
             _entryName = "";
             _recordConfirmEnterOpensKeyboard = true;
-            _resultView = ResultView.Menu;
             UpdateSidebar();
-            ShowResultPanel();
+
+            if (_resultView != ResultView.Entry)
+            {
+                ShowResultMenuView();
+                return;
+            }
+
+            // キーボードを下へ退場させてから 3択メニューへ
+            _menuBusy = true;
+            PlayKeyboardSlide(show: false, then: () =>
+            {
+                _menuBusy = false;
+                ShowResultMenuView();
+            });
         }
 
         private static void QuitApplication()
@@ -1199,6 +1444,12 @@ namespace Masu.UI
 
         private void ReturnToTitle()
         {
+            if (_keyboardSlideRoutine != null)
+            {
+                StopCoroutine(_keyboardSlideRoutine);
+                _keyboardSlideRoutine = null;
+            }
+            _menuBusy = false;
             ResetResultFlow();
             DismissGameOverlays();
             _titleMenu = 0;
@@ -1246,10 +1497,12 @@ namespace Masu.UI
         private void OpenPauseMenu()
         {
             if (_screen != AppScreen.Game || _pauseVisible) return;
+            if (_scoreAnimating || _state.Finished) return; // 採点演出中は割り込ませない
             _pauseMenu = 0;
             _pauseVisible = true;
             _pauseRoot.gameObject.SetActive(true);
             _pauseRoot.SetAsLastSibling();
+            ForgetListCursor(_pauseLabels);
             RefreshPauseMenu();
             if (!_state.Finished && !_state.ScoringPlayElapsed.HasValue && _state.StartRealtime.HasValue)
                 _clockPausedAt = Time.realtimeSinceStartupAsDouble;
@@ -1270,11 +1523,8 @@ namespace Masu.UI
             }
         }
 
-        private void RefreshPauseMenu()
-        {
-            var items = new[] { "ゲームに戻る", "メニューに戻る" };
-            HighlightList(_pauseLabels, _pauseMenu, items);
-        }
+        private void RefreshPauseMenu() =>
+            HighlightList(_pauseLabels, _pauseMenu, PauseMenuItems);
 
         private void HandlePauseInput()
         {
@@ -1292,13 +1542,12 @@ namespace Masu.UI
                 ClosePauseMenu();
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                if (_pauseMenu == 0)
-                    ClosePauseMenu();
-                else
+                var choice = _pauseMenu;
+                Decide(_pauseLabels[choice], () =>
                 {
                     ClosePauseMenu();
-                    ReturnToTitle();
-                }
+                    if (choice != 0) ReturnToTitle();
+                });
             }
         }
 
@@ -1319,9 +1568,13 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.DownArrow)) { _titleMenu = NavVertical(_titleMenu, 1, 3); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                if (_titleMenu == 0) { _modeCursor = 0; ShowScreen(AppScreen.Mode); }
-                else if (_titleMenu == 1) ShowScreen(AppScreen.Help);
-                else { _rankingOpCursor = 0; _rankingBoardCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
+                var choice = _titleMenu;
+                Decide(_titleLabels[choice], () =>
+                {
+                    if (choice == 0) { _modeCursor = 0; ShowScreen(AppScreen.Mode); }
+                    else if (choice == 1) ShowScreen(AppScreen.Help);
+                    else { _rankingOpCursor = 0; _rankingBoardCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
+                });
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) Application.Quit();
         }
@@ -1338,9 +1591,13 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.DownArrow)) { _modeCursor = NavVertical(_modeCursor, 1, 4); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                _pendingOperation = Operations[_modeCursor];
-                _gridCursor = 0;
-                ShowScreen(AppScreen.Grid);
+                var choice = _modeCursor;
+                Decide(_modeLabels[choice], () =>
+                {
+                    _pendingOperation = Operations[choice];
+                    _gridCursor = 0;
+                    ShowScreen(AppScreen.Grid);
+                });
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
         }
@@ -1352,9 +1609,13 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.DownArrow)) { _gridCursor = NavVertical(_gridCursor, 1, n); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                _pendingGridSize = GameConstants.GridSizes[_gridCursor];
-                _playStyleCursor = 0;
-                ShowScreen(AppScreen.PlayStyle);
+                var choice = _gridCursor;
+                Decide(_gridLabels[choice], () =>
+                {
+                    _pendingGridSize = GameConstants.GridSizes[choice];
+                    _playStyleCursor = 0;
+                    ShowScreen(AppScreen.PlayStyle);
+                });
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Mode);
         }
@@ -1373,8 +1634,11 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                var mode = _playStyleCursor == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
-                StartGame(_pendingOperation, new PlayBoard(_pendingGridSize, mode));
+                var choice = _playStyleCursor;
+                var mode = choice == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
+                var op = _pendingOperation;
+                var board = new PlayBoard(_pendingGridSize, mode);
+                Decide(_playStyleLabels[choice], () => StartCoroutine(GameStartTransition(op, board)));
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
@@ -1422,8 +1686,11 @@ namespace Masu.UI
             if (TryMoveFocus()) return;
             if (Input.GetKeyDown(KeyCode.Backspace))
             {
+                var hadText = !string.IsNullOrEmpty(_state.Buffer);
                 ClearQuickMarkOnEdit();
                 _state.HandleBackspace();
+                if (hadText) _gridView.PlayEraseFeedback(_state.FocusRow, _state.FocusCol);
+                else _gridView.PlayRejectShake(_state.FocusRow, _state.FocusCol);
                 RefreshGrid();
                 UpdateEndGuide();
                 return;
@@ -1448,16 +1715,12 @@ namespace Masu.UI
             }
             if (_state.Operation == Operation.Sub && Input.GetKeyDown(KeyCode.Minus))
             {
-                ClearQuickMarkOnEdit();
-                _state.HandleChar('-');
-                RefreshGrid();
+                TypeIntoFocusedCell('-');
                 return;
             }
             if (_state.Operation == Operation.Div && Input.GetKeyDown(KeyCode.Period))
             {
-                ClearQuickMarkOnEdit();
-                _state.HandleChar('.');
-                RefreshGrid();
+                TypeIntoFocusedCell('.');
                 return;
             }
             for (var d = 0; d <= 9; d++)
@@ -1465,12 +1728,23 @@ namespace Masu.UI
                 var kc = KeyCode.Alpha0 + d;
                 if (Input.GetKeyDown(kc) || Input.GetKeyDown(KeyCode.Keypad0 + d))
                 {
-                    ClearQuickMarkOnEdit();
-                    _state.HandleChar((char)('0' + d));
-                    RefreshGrid();
+                    TypeIntoFocusedCell((char)('0' + d));
                     return;
                 }
             }
+        }
+
+        /// <summary>1 文字入力。受理されたら文字がポンと弾み、弾かれたら赤く小さく震える。</summary>
+        private void TypeIntoFocusedCell(char ch)
+        {
+            var before = _state.Buffer;
+            ClearQuickMarkOnEdit();
+            _state.HandleChar(ch);
+            if (_state.Buffer != before)
+                _gridView.PlayInputPunch(_state.FocusRow, _state.FocusCol);
+            else
+                _gridView.PlayRejectShake(_state.FocusRow, _state.FocusCol);
+            RefreshGrid();
         }
 
         private bool TryMoveFocus()
@@ -1499,7 +1773,11 @@ namespace Masu.UI
                 _focusMoveNextRepeat = now + FocusMoveRepeatInterval;
             }
 
+            var prevRow = _state.FocusRow;
+            var prevCol = _state.FocusCol;
             _state.MoveFocus(dr, dc);
+            if (_state.FocusRow != prevRow || _state.FocusCol != prevCol)
+                _gridView.PlayFocusMoved(_state.FocusRow, _state.FocusCol);
             ApplyQuickGradeFeedback();
             RefreshGrid();
             UpdateSidebar();
@@ -1507,29 +1785,14 @@ namespace Masu.UI
             return true;
         }
 
+        /// <summary>クイック採点のフィードバック: 離れたマスに ○× をスタンプ。</summary>
         private void ApplyQuickGradeFeedback()
         {
             if (_playMode != GamePlayMode.Quick) return;
             var ev = _state.TakeQuickGradeFeedback();
             if (!ev.HasValue) return;
             _quickMarks[(ev.Row, ev.Col)] = ev.Correct;
-            if (_quickPopRoutine != null) StopCoroutine(_quickPopRoutine);
-            _quickPopGen++;
-            _quickPopRoutine = StartCoroutine(PopQuickGradeMark(ev.Row, ev.Col, _quickPopGen));
-        }
-
-        private IEnumerator PopQuickGradeMark(int row, int col, int gen)
-        {
-            var scales = new[] { 1.35f, 0.92f, 1.12f, 1f };
-            foreach (var s in scales)
-            {
-                if (gen != _quickPopGen) yield break;
-                _gridView.PopMark(row, col, s);
-                RefreshGrid();
-                yield return new WaitForSeconds(0.045f);
-            }
-            _gridView.ResetMarkScales();
-            RefreshGrid();
+            _gridView.PlayGradeStamp(ev.Row, ev.Col, ev.Correct, 0.3f);
         }
 
         private void ClearQuickMarkOnEdit()
@@ -1566,9 +1829,13 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                SetEndConfirmVisible(false);
-                if (_endConfirmChoice == 0) FinishWithScore();
-                else UpdateEndGuide();
+                var choice = _endConfirmChoice;
+                Decide(_endConfirmLabels[choice], () =>
+                {
+                    SetEndConfirmVisible(false);
+                    if (choice == 0) FinishWithScore();
+                    else UpdateEndGuide();
+                });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
@@ -1611,28 +1878,13 @@ namespace Masu.UI
             if (_resultView == ResultView.Confirm)
             {
                 if (Input.GetKeyDown(KeyCode.LeftShift) || Input.GetKeyDown(KeyCode.RightShift))
-                {
-                    _resultView = ResultView.Menu;
-                    ShowResultPanel();
-                }
+                    ShowResultMenuView();
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
                 {
-                    if (_recordConfirmEnterOpensKeyboard)
-                    {
-                        _recordConfirmEnterOpensKeyboard = false;
-                        _nameKeyboard = new MasuNameKeyboard();
-                        _resultView = ResultView.Entry;
-                        ShowResultPanel();
-                    }
-                    else if (!string.IsNullOrWhiteSpace(_entryName))
+                    if (!_recordConfirmEnterOpensKeyboard && !string.IsNullOrWhiteSpace(_entryName))
                         SubmitScoreEntry();
                     else
-                    {
-                        _recordConfirmEnterOpensKeyboard = false;
-                        _nameKeyboard = new MasuNameKeyboard();
-                        _resultView = ResultView.Entry;
-                        ShowResultPanel();
-                    }
+                        EnterNameEntryView();
                 }
                 return;
             }
@@ -1649,9 +1901,13 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
-                if (_resultMenu == 0) ReturnToTitle();
-                else if (_resultMenu == 1) BeginScoreRecord();
-                else QuitApplication();
+                var choice = _resultMenu;
+                Decide(_resultMenuLabels[choice], () =>
+                {
+                    if (choice == 0) ReturnToTitle();
+                    else if (choice == 1) BeginScoreRecord();
+                    else QuitApplication();
+                });
             }
         }
     }
