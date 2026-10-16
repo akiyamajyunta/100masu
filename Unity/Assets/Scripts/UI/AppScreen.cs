@@ -9,7 +9,9 @@ namespace Masu.UI
         PlayStyle,
         Game,
         ScoreRanking,
-        Options
+        Options,
+        OptionsVisual,
+        OptionsEffects
     }
 
     public enum ResultView

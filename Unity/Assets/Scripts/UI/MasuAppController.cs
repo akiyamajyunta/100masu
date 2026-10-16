@@ -74,6 +74,19 @@ namespace Masu.UI
         private int _pauseMenu;
         private bool _pauseVisible;
         private readonly Dictionary<AppScreen, GameObject> _menuPanels = new();
+        // タイトル OP（背景写真・ロゴ・赤帯）。起動時のみ再生する
+        private GameObject _titleBackdrop;
+        private Image _titlePaper;
+        private Image _titlePhoto;
+        private Image _titleLogo;
+        private Image _titleSubtitle;
+        private Image _titlePanelRed;
+        private Coroutine _titleOpRoutine;
+        private bool _titleOpPlayed;
+        private Vector2 _titleLogoBasePos;
+        private Vector2 _titlePanelBasePos;
+        private const float TitleOpSlideOffset = 780f;
+        private const int TitlePhotoFrameCrop = 20;
         private Text[] _titleLabels;
         private Text[] _modeLabels;
         private Text _modeStepHint;
@@ -87,7 +100,14 @@ namespace Masu.UI
         private Text[] _optionsLabels;
         private Text _optionsHint;
         private int _optionsCursor;
-        private static readonly string[] OptionsMenuItems = { "戻る" };
+        private Text[] _optionsVisualLabels;
+        private Text _optionsVisualHint;
+        private int _optionsVisualCursor;
+        private Text[] _optionsEffectsLabels;
+        private Text _optionsEffectsHint;
+        private int _optionsEffectsCursor;
+        private static readonly string[] OptionsMenuItems = { "ビジュアル", "エフェクト", "戻る" };
+        private static readonly string[] OptionsVisualMenuItems = { "戻る" };
         private Text[] _rankingOpTabs;
         private Text _rankingGridLabel;
         private Text _rankingGridArrowUp;
@@ -102,6 +122,7 @@ namespace Masu.UI
         private Text _sidebarSkillStars;
         private Text _sidebarTime;
         private Text _guideText;
+        private Text _readyGoLabel;
         private Text _resultTitle;
         private Text _resultSummary;
         private Text[] _resultMenuLabels;
@@ -137,9 +158,13 @@ namespace Masu.UI
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
 
         private static readonly string[] TitleMenuItems = { "はじめる", "操作説明", "記録", "オプション" };
-        /// <summary>タイトルメニュー: 未選択行の先頭（全角スペースで字下げ）。</summary>
-        private const string TitleMenuPrefixIdle = "　　　";
-        private const string TitleMenuPrefixSelected = "▶　";
+        private const int TitleMenuFontSize = 48;
+        private const float TitleMenuStartY = 130f;
+        private const float TitleMenuRowStep = 108f;
+        private const float TitleRedPanelWidth = 280f;
+        private const float TitleRedPanelHeight = 535f;
+        private static readonly Vector2 TitleRedPanelCenter = new(-408f, -60f);
+        private const float TitleMenuTextPaddingLeft = 36f;
         private static readonly string[] PauseMenuItems = { "ゲームに戻る", "メニューに戻る" };
         private static readonly string[] EndConfirmItems = { "はい", "いいえ" };
 
@@ -171,6 +196,7 @@ namespace Masu.UI
         private void Awake()
         {
             _store = ScoreStore.Load();
+            MasuVisualSettings.Load();
             var idx = MasuDisplaySettings.LoadSavedIndex();
             var ask = MasuDisplaySettings.LoadAskEveryTime();
             if (!ask)
@@ -255,6 +281,8 @@ namespace Masu.UI
                 case AppScreen.PlayStyle: HandlePlayStyleInput(); break;
                 case AppScreen.ScoreRanking: HandleRankingInput(); break;
                 case AppScreen.Options: HandleOptionsInput(); break;
+                case AppScreen.OptionsVisual: HandleOptionsVisualInput(); break;
+                case AppScreen.OptionsEffects: HandleOptionsEffectsInput(); break;
                 case AppScreen.Game:
                     // セル演出は毎フレーム進める（イントロ・採点中も含む）
                     _gridView.Tick(Time.unscaledDeltaTime);
@@ -314,14 +342,29 @@ namespace Masu.UI
 
         private void BuildMenuPanels()
         {
+            BuildTitleBackdrop();
+
             _titleLabels = BuildMenuList(_menuRoot, "Title", TitleMenuItems,
-                out var titlePanel, startY: 20f);
+                out var titlePanel, startY: TitleMenuStartY, rowStep: TitleMenuRowStep,
+                panelBackground: Color.clear);
+            if (_titlePanelRed != null)
+            {
+                // メニュー項目を赤帯の上へ寄せる
+                var menuLeftX = TitleRedPanelCenter.x - TitleRedPanelWidth * 0.5f + TitleMenuTextPaddingLeft;
+                for (var i = 0; i < _titleLabels.Length; i++)
+                {
+                    var label = _titleLabels[i];
+                    label.alignment = TextAnchor.MiddleLeft;
+                    var rt = label.rectTransform;
+                    rt.pivot = new Vector2(0f, 0.5f);
+                    rt.anchoredPosition = new Vector2(menuLeftX, TitleMenuStartY - i * TitleMenuRowStep);
+                    rt.sizeDelta = new Vector2(TitleRedPanelWidth - TitleMenuTextPaddingLeft * 2f, TitleMenuRowStep);
+                    MasuFonts.Apply(label, TitleMenuFontSize);
+                    MasuUiFactory.ApplyBlackOutline(label, 1.4f);
+                }
+            }
+            HideTitleMenuItems();
             _menuPanels[AppScreen.Title] = titlePanel;
-            var heading = MasuUiFactory.CreateText(titlePanel.transform, "Heading", "100マス計算", 48, MasuTheme.CursorGold);
-            heading.rectTransform.anchorMin = heading.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            heading.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            heading.rectTransform.anchoredPosition = new Vector2(0, 200);
-            heading.rectTransform.sizeDelta = new Vector2(720, 72);
 
             var helpPanel = MasuUiFactory.CreatePanel(_menuRoot, "Help", MasuTheme.MainPanel);
             var helpText = MasuUiFactory.CreateText(helpPanel.transform, "HelpText",
@@ -329,7 +372,7 @@ namespace Masu.UI
                 "矢印 / WASD … マス移動（長押しで連続）\n" +
                 "数字 … 入力　Backspace … 削除\n" +
                 "Shift または Esc … 一時停止（ゲームに戻る / メニューに戻る）\n" +
-                "タイマー … ヘッダー表示と同時に計測開始\n" +
+                "タイマー … GO! の合図と同時に計測開始\n" +
                 "クラシック … Enter で終了・一括採点\n" +
                 "クイック … 別マスへ移動で採点（○ / × 表示）\n" +
                 "　　　　　最終マスは Enter で確定（空欄は無視）・全マス○でクリア\n" +
@@ -337,7 +380,7 @@ namespace Masu.UI
                 "【 メニュー 】\n" +
                 "はじめる … クラシック/クイック → 演算 → マス目\n" +
                 "記録 … スコア一覧（←→ 演算　↑↓ 盤面）\n" +
-                "オプション … 準備中（戻る）\n" +
+                "オプション … ビジュアル（戻るのみ） / エフェクト（ノーマル・ドーパミン）\n" +
                 "Esc … タイトル（演算はプレイスタイルへ、マス目は演算へ）\n" +
                 "操作説明 … Enter または Esc でタイトルへ\n\n" +
                 "【 リザルト 】\n" +
@@ -388,12 +431,109 @@ namespace Masu.UI
             _optionsLabels = BuildMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel,
                 startY: 20f);
             _optionsHint = MasuUiFactory.CreateText(optionsPanel.transform, "OpHint",
-                "【 オプション 】（準備中）", 24, MasuTheme.CursorGold);
+                "【 オプション 】", 24, MasuTheme.CursorGold);
             _optionsHint.rectTransform.anchorMin = _optionsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _optionsHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             _optionsHint.rectTransform.anchoredPosition = new Vector2(0, 200);
             _optionsHint.rectTransform.sizeDelta = new Vector2(720, 36);
             _menuPanels[AppScreen.Options] = optionsPanel;
+
+            _optionsVisualLabels = BuildMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
+                out var optionsVisualPanel, startY: 20f);
+            _optionsVisualHint = MasuUiFactory.CreateText(optionsVisualPanel.transform, "OpHint",
+                "【 ビジュアル 】", 24, MasuTheme.CursorGold);
+            _optionsVisualHint.rectTransform.anchorMin = _optionsVisualHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _optionsVisualHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _optionsVisualHint.rectTransform.anchoredPosition = new Vector2(0, 200);
+            _optionsVisualHint.rectTransform.sizeDelta = new Vector2(720, 36);
+            _menuPanels[AppScreen.OptionsVisual] = optionsVisualPanel;
+
+            _optionsEffectsLabels = BuildMenuList(_menuRoot, "OptionsEffects",
+                new[] { MasuVisualProfile.Normal.LabelJa(), MasuVisualProfile.Dopamine.LabelJa(), "戻る" },
+                out var optionsEffectsPanel, startY: 20f);
+            _optionsEffectsHint = MasuUiFactory.CreateText(optionsEffectsPanel.transform, "OpHint",
+                "【 エフェクト 】", 24, MasuTheme.CursorGold);
+            _optionsEffectsHint.rectTransform.anchorMin = _optionsEffectsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _optionsEffectsHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _optionsEffectsHint.rectTransform.anchoredPosition = new Vector2(0, 200);
+            _optionsEffectsHint.rectTransform.sizeDelta = new Vector2(720, 36);
+            _menuPanels[AppScreen.OptionsEffects] = optionsEffectsPanel;
+        }
+
+        private static string[] OptionsEffectsMenuLabels() =>
+            new[]
+            {
+                MasuVisualSettings.MenuLabel(MasuVisualProfile.Normal),
+                MasuVisualSettings.MenuLabel(MasuVisualProfile.Dopamine),
+                "戻る"
+            };
+
+        /// <summary>
+        /// タイトル背景（紙テクスチャ＋森の写真＋ロゴ＋赤帯）。
+        /// 素材は Resources/TitleArt から読む。読めない場合は各要素 null のまま。
+        /// </summary>
+        private void BuildTitleBackdrop()
+        {
+            _titleBackdrop = new GameObject("TitleBackdrop", typeof(RectTransform));
+            _titleBackdrop.transform.SetParent(_menuRoot, false);
+            MasuUiFactory.Stretch(_titleBackdrop.GetComponent<RectTransform>());
+
+            _titlePaper = CreateTitleArtImage("Paper", "title_paper");
+            if (_titlePaper != null)
+                MasuUiFactory.Stretch(_titlePaper.rectTransform);
+
+            _titlePhoto = CreateTitleArtImage("Photo", "title_photo", TitlePhotoFrameCrop);
+            if (_titlePhoto != null)
+                MasuUiFactory.Stretch(_titlePhoto.rectTransform);
+
+            _titlePanelRed = CreateTitleArtImage("RedPanel", "title_panel");
+            if (_titlePanelRed != null)
+            {
+                var rt = _titlePanelRed.rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(TitleRedPanelWidth, TitleRedPanelHeight);
+                _titlePanelBasePos = TitleRedPanelCenter;
+                rt.anchoredPosition = _titlePanelBasePos;
+            }
+
+            _titleLogo = CreateTitleArtImage("Logo", "title_logo");
+            if (_titleLogo != null)
+            {
+                var rt = _titleLogo.rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+                rt.pivot = new Vector2(1f, 0f);
+                rt.sizeDelta = new Vector2(600, 127);
+                _titleLogoBasePos = new Vector2(-28, 64);
+                rt.anchoredPosition = _titleLogoBasePos;
+            }
+
+            _titleSubtitle = CreateTitleArtImage("Subtitle", "title_subtitle");
+            if (_titleSubtitle != null)
+            {
+                var rt = _titleSubtitle.rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+                rt.pivot = new Vector2(1f, 0f);
+                rt.sizeDelta = new Vector2(320, 31);
+                rt.anchoredPosition = new Vector2(-34, 26);
+            }
+
+            _titleBackdrop.SetActive(false);
+        }
+
+        private Image CreateTitleArtImage(string name, string resourceName, int cropPx = 0)
+        {
+            var tex = Resources.Load<Texture2D>("TitleArt/" + resourceName);
+            if (tex == null) return null;
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            go.transform.SetParent(_titleBackdrop.transform, false);
+            var img = go.GetComponent<Image>();
+            var crop = Mathf.Clamp(cropPx, 0, Mathf.Min(tex.width, tex.height) / 2 - 1);
+            var rect = new Rect(crop, crop, tex.width - crop * 2, tex.height - crop * 2);
+            img.sprite = Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f);
+            img.preserveAspect = false;
+            img.raycastTarget = false;
+            return img;
         }
 
         private static Text[] BuildMenuList(
@@ -521,6 +661,18 @@ namespace Masu.UI
             _guideText.rectTransform.pivot = new Vector2(0.5f, 0f);
             _guideText.rectTransform.anchoredPosition = new Vector2(0, 12);
             _guideText.rectTransform.sizeDelta = new Vector2(640, 48);
+
+            // READY / GO! の合図（盤面中央にポップ表示。普段は非表示）
+            _readyGoLabel = MasuUiFactory.CreateText(playInner, "ReadyGo", "", 72, MasuTheme.CursorGold);
+            _readyGoLabel.fontStyle = FontStyle.Bold;
+            MasuFonts.Apply(_readyGoLabel, 72);
+            MasuUiFactory.ApplyBlackOutline(_readyGoLabel, 2f);
+            var readyRt = _readyGoLabel.rectTransform;
+            readyRt.anchorMin = readyRt.anchorMax = new Vector2(0.5f, 0.5f);
+            readyRt.pivot = new Vector2(0.5f, 0.5f);
+            readyRt.anchoredPosition = Vector2.zero;
+            readyRt.sizeDelta = new Vector2(600, 110);
+            _readyGoLabel.gameObject.SetActive(false);
 
             BuildScoreSidebar();
         }
@@ -666,7 +818,6 @@ namespace Masu.UI
             var rows = MasuNameKeyboard.Rows;
             _keyboardKeyLabels = new Text[rows.Length][];
             var colStep = MasuNameKeyboardLayout.ColumnStep;
-            var halfW = MasuNameKeyboardLayout.KeyboardWidth * 0.5f;
             var pad = 1f;
             var rowCount = rows.Length;
             for (var r = 0; r < rowCount; r++)
@@ -725,13 +876,176 @@ namespace Masu.UI
             if (screen != AppScreen.Game)
                 DismissGameOverlays();
 
+            if (_screen == AppScreen.Title && screen != AppScreen.Title)
+                StopTitleOpening();
+
             _screen = screen;
             _menuRoot.gameObject.SetActive(screen != AppScreen.Game);
             _gameRoot.gameObject.SetActive(screen == AppScreen.Game);
             foreach (var kv in _menuPanels)
                 kv.Value.SetActive(kv.Key == screen);
+            if (_titleBackdrop != null)
+                _titleBackdrop.SetActive(screen == AppScreen.Title);
             // 画面に入った直後は、カーソルが変わっていなくても選択項目をスライドインさせる
             ForgetListCursor(LabelsForScreen(screen));
+            if (screen == AppScreen.Title && !_titleOpPlayed)
+            {
+                HideTitleMenuItems();
+                StartTitleOpening();
+            }
+            else
+            {
+                RefreshMenuHighlights();
+            }
+        }
+
+        /// <summary>
+        /// OP: 背景フェード → 「100升計算」が右から左へ → 赤帯が左から右へ → 選択肢。
+        /// </summary>
+        private void StartTitleOpening()
+        {
+            StopTitleOpening();
+            if (_titleLogo == null || _titlePanelRed == null)
+            {
+                FinishTitleOpening();
+                return;
+            }
+            _titleOpRoutine = StartCoroutine(PlayTitleOpening());
+        }
+
+        private void StopTitleOpening()
+        {
+            if (_titleOpRoutine == null) return;
+            StopCoroutine(_titleOpRoutine);
+            _titleOpRoutine = null;
+            SnapTitleBackdropFinal();
+            _titleOpPlayed = true;
+        }
+
+        private void SkipTitleOpening()
+        {
+            if (_titleOpRoutine != null)
+            {
+                StopCoroutine(_titleOpRoutine);
+                _titleOpRoutine = null;
+            }
+            FinishTitleOpening();
+        }
+
+        private void SnapTitleBackdropFinal()
+        {
+            MasuUiAnimations.SetAlpha(_titlePaper, 1f);
+            MasuUiAnimations.SetAlpha(_titlePhoto, 1f);
+            MasuUiAnimations.SetAlpha(_titleSubtitle, 1f);
+            if (_titleLogo != null)
+            {
+                MasuUiAnimations.SetAlpha(_titleLogo, 1f);
+                _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos;
+            }
+            if (_titlePanelRed != null)
+            {
+                MasuUiAnimations.SetAlpha(_titlePanelRed, 1f);
+                _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos;
+            }
+        }
+
+        private void HideTitleMenuItems()
+        {
+            if (_titleLabels == null) return;
+            foreach (var label in _titleLabels)
+            {
+                if (label == null) continue;
+                MasuUiAnimations.SetAlpha(label, 0f);
+            }
+        }
+
+        private IEnumerator PlayTitleOpening()
+        {
+            HideTitleMenuItems();
+            MasuUiAnimations.SetAlpha(_titlePaper, 0f);
+            MasuUiAnimations.SetAlpha(_titlePhoto, 0f);
+            MasuUiAnimations.SetAlpha(_titleLogo, 0f);
+            MasuUiAnimations.SetAlpha(_titleSubtitle, 0f);
+            MasuUiAnimations.SetAlpha(_titlePanelRed, 0f);
+            _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos + new Vector2(TitleOpSlideOffset, 0f);
+            _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos - new Vector2(TitleOpSlideOffset, 0f);
+
+            var t = 0f;
+            const float bgFadeSec = 0.45f;
+            while (t < bgFadeSec)
+            {
+                t += Time.unscaledDeltaTime;
+                var a = Mathf.Clamp01(t / bgFadeSec);
+                MasuUiAnimations.SetAlpha(_titlePaper, a);
+                MasuUiAnimations.SetAlpha(_titlePhoto, a);
+                yield return null;
+            }
+
+            t = 0f;
+            const float logoSlideSec = 0.6f;
+            while (t < logoSlideSec)
+            {
+                t += Time.unscaledDeltaTime;
+                var p = Mathf.Clamp01(t / logoSlideSec);
+                var e = MasuUiAnimations.EaseOutCubic(p);
+                _titleLogo.rectTransform.anchoredPosition =
+                    _titleLogoBasePos + new Vector2(TitleOpSlideOffset * (1f - e), 0f);
+                MasuUiAnimations.SetAlpha(_titleLogo, p);
+                yield return null;
+            }
+            _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos;
+            yield return MasuUiAnimations.FadeAlpha(_titleSubtitle, 0f, 1f, 0.22f);
+
+            t = 0f;
+            const float panelSlideSec = 0.5f;
+            while (t < panelSlideSec)
+            {
+                t += Time.unscaledDeltaTime;
+                var p = Mathf.Clamp01(t / panelSlideSec);
+                var e = MasuUiAnimations.EaseOutCubic(p);
+                _titlePanelRed.rectTransform.anchoredPosition =
+                    _titlePanelBasePos - new Vector2(TitleOpSlideOffset * (1f - e), 0f);
+                MasuUiAnimations.SetAlpha(_titlePanelRed, p);
+                yield return null;
+            }
+            _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos;
+
+            yield return RevealTitleMenuItems();
+            _titleOpRoutine = null;
+            FinishTitleOpening();
+        }
+
+        private IEnumerator RevealTitleMenuItems()
+        {
+            if (_titleLabels == null) yield break;
+            for (var i = 0; i < _titleLabels.Length; i++)
+            {
+                var label = _titleLabels[i];
+                if (label == null) continue;
+                var basePos = BasePosOf(label);
+                var from = basePos + new Vector2(-28f, 0f);
+                var elapsed = 0f;
+                const float dur = 0.18f;
+                while (elapsed < dur)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    var p = MasuUiAnimations.EaseOutCubic(elapsed / dur);
+                    label.rectTransform.anchoredPosition = Vector2.LerpUnclamped(from, basePos, p);
+                    MasuUiAnimations.SetAlpha(label, p);
+                    yield return null;
+                }
+                label.rectTransform.anchoredPosition = basePos;
+                MasuUiAnimations.SetAlpha(label, 1f);
+            }
+        }
+
+        private void FinishTitleOpening()
+        {
+            SnapTitleBackdropFinal();
+            _titleOpPlayed = true;
+            _titleOpRoutine = null;
+            if (_screen != AppScreen.Title) return;
+            ForgetListCursor(_titleLabels);
             RefreshMenuHighlights();
         }
 
@@ -741,6 +1055,9 @@ namespace Masu.UI
             AppScreen.Mode => _modeLabels,
             AppScreen.Grid => _gridLabels,
             AppScreen.PlayStyle => _playStyleLabels,
+            AppScreen.Options => _optionsLabels,
+            AppScreen.OptionsVisual => _optionsVisualLabels,
+            AppScreen.OptionsEffects => _optionsEffectsLabels,
             _ => null
         };
 
@@ -793,8 +1110,8 @@ namespace Masu.UI
 
         private void RefreshMenuHighlights()
         {
-            HighlightList(_titleLabels, _titleMenu, TitleMenuItems,
-                TitleMenuPrefixIdle, TitleMenuPrefixSelected);
+            if (_titleOpRoutine == null)
+                HighlightTitleMenuList();
             HighlightList(_modeLabels, _modeCursor, OperationMenuLabelsJa());
             if (_modeStepHint != null)
                 _modeStepHint.text = $"【 {_pendingPlayMode.LabelJa()} 】 演算を選ぶ";
@@ -814,6 +1131,10 @@ namespace Masu.UI
 
             if (_screen == AppScreen.Options)
                 RefreshOptionsMenuHighlights();
+            if (_screen == AppScreen.OptionsVisual)
+                RefreshOptionsVisualMenuHighlights();
+            if (_screen == AppScreen.OptionsEffects)
+                RefreshOptionsEffectsMenuHighlights();
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
                 _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.ResultText;
@@ -832,6 +1153,32 @@ namespace Masu.UI
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
             for (var i = 0; i < 10; i++)
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
+        }
+
+        /// <summary>タイトルメニュー（▶ なし・赤枠内左寄せ）。</summary>
+        private void HighlightTitleMenuList()
+        {
+            if (_titleLabels == null || _titleLabels.Length == 0) return;
+            var changed = !_listCursorMemo.TryGetValue(_titleLabels, out var prev) || prev != _titleMenu;
+            _listCursorMemo[_titleLabels] = _titleMenu;
+
+            for (var i = 0; i < _titleLabels.Length; i++)
+            {
+                _titleLabels[i].text = TitleMenuItems[i];
+                var sel = i == _titleMenu;
+                if (!sel)
+                {
+                    RestoreLabelPose(_titleLabels[i]);
+                    _titleLabels[i].color = MasuTheme.Text;
+                }
+            }
+
+            if (_titleMenu < 0 || _titleMenu >= _titleLabels.Length) return;
+            var selected = _titleLabels[_titleMenu];
+            if (changed && selected.gameObject.activeInHierarchy)
+                PlaySelectSlideIn(selected);
+            else if (!_labelAnims.ContainsKey(selected))
+                selected.color = MasuTheme.CursorGold;
         }
 
         /// <summary>
@@ -1025,8 +1372,6 @@ namespace Masu.UI
             var gen = _introGen;
             try
             {
-                _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
-                _timerRoutine = StartCoroutine(TickTimer());
                 var cells = _state.Grid.HeaderRevealCells();
                 var stagger = Mathf.Clamp(IntroHeaderBudgetSec / Mathf.Max(1, cells.Count), 0.03f, 0.12f);
 
@@ -1043,12 +1388,47 @@ namespace Masu.UI
                 _gridView.PlayOperatorPunch();
                 yield return PlayBoardWave(MasuTheme.CursorGold, 0.35f, 0.28f, 0.022f, punchMarks: false);
                 if (gen != _introGen) yield break;
+
+                // READY → GO! の合図。GO! と同時にタイマー計測を開始する。
+                _readyGoLabel.gameObject.SetActive(true);
+                _readyGoLabel.transform.SetAsLastSibling();
+                yield return PopCaption(_readyGoLabel, "READY", MasuTheme.Text, 0.6f);
+                if (gen != _introGen) yield break;
+
+                _state.StartRealtime = Time.realtimeSinceStartupAsDouble;
+                _timerRoutine = StartCoroutine(TickTimer());
+                CompleteIntroAnimation(gen); // GO! と同時に操作を解禁する
+                yield return PopCaption(_readyGoLabel, "GO!", MasuTheme.CursorGold, 0.35f);
+                yield return MasuUiAnimations.FadeAlpha(_readyGoLabel, 1f, 0f, 0.15f);
             }
             finally
             {
+                if (_readyGoLabel != null)
+                    _readyGoLabel.gameObject.SetActive(false);
                 if (gen == _introGen)
                     CompleteIntroAnimation(gen);
             }
+        }
+
+        /// <summary>合図テキストをポップイン（拡大から着地）させて hold 秒だけ保持する。</summary>
+        private static IEnumerator PopCaption(Text label, string text, Color color, float holdSeconds)
+        {
+            label.text = text;
+            label.color = color;
+            var rt = label.rectTransform;
+            const float popInSeconds = 0.16f;
+            var elapsed = 0f;
+            while (elapsed < popInSeconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var p = MasuUiAnimations.EaseOutCubic(elapsed / popInSeconds);
+                rt.localScale = Vector3.one * Mathf.LerpUnclamped(1.9f, 1f, p);
+                MasuUiAnimations.SetAlpha(label, p);
+                yield return null;
+            }
+            rt.localScale = Vector3.one;
+            MasuUiAnimations.SetAlpha(label, 1f);
+            yield return new WaitForSecondsRealtime(holdSeconds);
         }
 
         private void CompleteIntroAnimation(int gen)
@@ -1526,7 +1906,7 @@ namespace Masu.UI
         private void OpenPauseMenu()
         {
             if (_screen != AppScreen.Game || _pauseVisible) return;
-            if (_scoreAnimating || _state.Finished) return; // 採点演出中は割り込ませない
+            if (_scoreAnimating || _introAnimating || _state.Finished) return; // イントロ・採点演出中は割り込ませない
             _pauseMenu = 0;
             _pauseVisible = true;
             _pauseRoot.gameObject.SetActive(true);
@@ -1601,16 +1981,105 @@ namespace Masu.UI
         private void RefreshOptionsMenuHighlights() =>
             HighlightList(_optionsLabels, _optionsCursor, OptionsMenuItems);
 
+        private void RefreshOptionsVisualMenuHighlights() =>
+            HighlightList(_optionsVisualLabels, _optionsVisualCursor, OptionsVisualMenuItems);
+
+        private void RefreshOptionsEffectsMenuHighlights() =>
+            HighlightList(_optionsEffectsLabels, _optionsEffectsCursor, OptionsEffectsMenuLabels());
+
+        private void OpenOptionsVisualScreen()
+        {
+            _optionsVisualCursor = 0;
+            ForgetListCursor(_optionsVisualLabels);
+            ShowScreen(AppScreen.OptionsVisual);
+        }
+
+        private void OpenOptionsEffectsScreen()
+        {
+            _optionsEffectsCursor = (int)MasuVisualSettings.ActiveProfile;
+            ForgetListCursor(_optionsEffectsLabels);
+            ShowScreen(AppScreen.OptionsEffects);
+        }
+
         private void HandleOptionsInput()
         {
-            if (Input.GetKeyDown(KeyCode.Escape))
-                ShowScreen(AppScreen.Title);
+            const int count = 3;
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                _optionsCursor = NavVertical(_optionsCursor, -1, count);
+                RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                _optionsCursor = NavVertical(_optionsCursor, 1, count);
+                RefreshMenuHighlights();
+            }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                Decide(_optionsLabels[0], () => ShowScreen(AppScreen.Title));
+            {
+                var choice = _optionsCursor;
+                Decide(_optionsLabels[choice], () =>
+                {
+                    if (choice == 0) OpenOptionsVisualScreen();
+                    else if (choice == 1) OpenOptionsEffectsScreen();
+                    else ShowScreen(AppScreen.Title);
+                });
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+                ShowScreen(AppScreen.Title);
+        }
+
+        private void HandleOptionsVisualInput()
+        {
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                Decide(_optionsVisualLabels[0], () => ShowScreen(AppScreen.Options));
+            else if (Input.GetKeyDown(KeyCode.Escape))
+                ShowScreen(AppScreen.Options);
+        }
+
+        private void HandleOptionsEffectsInput()
+        {
+            const int count = 3;
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                _optionsEffectsCursor = NavVertical(_optionsEffectsCursor, -1, count);
+                RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                _optionsEffectsCursor = NavVertical(_optionsEffectsCursor, 1, count);
+                RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                var choice = _optionsEffectsCursor;
+                Decide(_optionsEffectsLabels[choice], () =>
+                {
+                    if (choice == 0)
+                    {
+                        MasuVisualSettings.SetProfile(MasuVisualProfile.Normal);
+                        RefreshMenuHighlights();
+                    }
+                    else if (choice == 1)
+                    {
+                        MasuVisualSettings.SetProfile(MasuVisualProfile.Dopamine);
+                        RefreshMenuHighlights();
+                    }
+                    else ShowScreen(AppScreen.Options);
+                });
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+                ShowScreen(AppScreen.Options);
         }
 
         private void HandleTitleInput()
         {
+            if (_titleOpRoutine != null)
+            {
+                if (Input.anyKeyDown)
+                    SkipTitleOpening();
+                return;
+            }
+
             const int titleCount = 4;
             if (Input.GetKeyDown(KeyCode.UpArrow)) { _titleMenu = NavVertical(_titleMenu, -1, titleCount); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.DownArrow)) { _titleMenu = NavVertical(_titleMenu, 1, titleCount); RefreshMenuHighlights(); }
