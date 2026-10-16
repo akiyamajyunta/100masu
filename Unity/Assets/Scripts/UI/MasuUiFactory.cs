@@ -99,6 +99,12 @@ namespace Masu.UI
             rt.offsetMax = new Vector2(-right, -top);
         }
 
+        /// <summary>全面背景用。四隅の1px隙間や素材端の透過を画面外へ逃がす。</summary>
+        public static void StretchFullBleed(RectTransform rt, float bleedPixels = 32f)
+        {
+            Stretch(rt, -bleedPixels, -bleedPixels, -bleedPixels, -bleedPixels);
+        }
+
         /// <summary>アンカーで配置した金枠＋内側パネル。子 UI は返却 RectTransform に配置。</summary>
         /// <param name="regionScale">配置領域に対する枠の横幅（1=いっぱい、0.9=90%で中央寄せ）。</param>
         /// <param name="regionScaleY">縦幅。省略時は regionScale と同じ。</param>

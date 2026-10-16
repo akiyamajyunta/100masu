@@ -76,27 +76,23 @@ namespace Masu.UI
         private readonly Dictionary<AppScreen, GameObject> _menuPanels = new();
         // タイトル OP（背景写真・ロゴ・赤帯）。起動時のみ再生する
         private GameObject _titleBackdrop;
-        private Image _titlePaper;
+        private Image _titleScrim;
         private Image _titlePhoto;
         private Image _titleLogo;
         private Image _titleSubtitle;
-        private Image _titlePanelRed;
         private Coroutine _titleOpRoutine;
         private bool _titleOpPlayed;
         private Vector2 _titleLogoBasePos;
-        private Vector2 _titlePanelBasePos;
         private const float TitleOpSlideOffset = 780f;
-        private const int TitlePhotoFrameCrop = 20;
+        private const float BackdropBleedPixels = 32f;
         private Text[] _titleLabels;
-        private Text[] _modeLabels;
-        private Text _modeStepHint;
-        private Text[] _gridLabels;
-        private Text _gridOpHint;
         private int _pendingGridSize = 4;
         private int _playStyleCursor;
-        private Text[] _playStyleLabels;
-        private Text _playStyleStepHint;
-        private Text _playStyleHint;
+        private MasuForestSelectMenu _playStyleForestMenu;
+        private MasuForestSelectMenu _modeForestMenu;
+        private MasuForestSelectMenu _gridForestMenu;
+        private GameObject _forestBackdrop;
+        private Coroutine _forestHighlightRoutine;
         private Text[] _optionsLabels;
         private Text _optionsHint;
         private int _optionsCursor;
@@ -159,12 +155,15 @@ namespace Masu.UI
 
         private static readonly string[] TitleMenuItems = { "はじめる", "操作説明", "記録", "オプション" };
         private const int TitleMenuFontSize = 48;
-        private const float TitleMenuStartY = 130f;
-        private const float TitleMenuRowStep = 108f;
-        private const float TitleRedPanelWidth = 280f;
-        private const float TitleRedPanelHeight = 535f;
-        private static readonly Vector2 TitleRedPanelCenter = new(-408f, -60f);
-        private const float TitleMenuTextPaddingLeft = 36f;
+        private const float TitleMenuStartY = 76f;
+        private const float TitleMenuRowStep = 99f;
+        private const float TitleSidePanelWidth = 340f;
+        private const float TitleSidePanelHeight = 535f;
+        private static readonly Vector2 TitleSidePanelPos = new(-416f, -66f);
+        private const float TitleMenuTextPaddingLeft = 43f;
+        private static readonly Color TitleMenuTextBlack = new(0.06f, 0.06f, 0.06f);
+        private static readonly Color TitleMenuTextIdle = new(0.06f, 0.06f, 0.06f, 0.55f);
+        private Image _titleSidePanel;
         private static readonly string[] PauseMenuItems = { "ゲームに戻る", "メニューに戻る" };
         private static readonly string[] EndConfirmItems = { "はい", "いいえ" };
 
@@ -343,25 +342,35 @@ namespace Masu.UI
         private void BuildMenuPanels()
         {
             BuildTitleBackdrop();
+            BuildForestBackdrop();
 
             _titleLabels = BuildMenuList(_menuRoot, "Title", TitleMenuItems,
                 out var titlePanel, startY: TitleMenuStartY, rowStep: TitleMenuRowStep,
                 panelBackground: Color.clear);
-            if (_titlePanelRed != null)
+            _titleSidePanel = CreateTitleArtImage(titlePanel.transform, "SidePanel", "title_panel");
+            if (_titleSidePanel != null)
             {
-                // メニュー項目を赤帯の上へ寄せる
-                var menuLeftX = TitleRedPanelCenter.x - TitleRedPanelWidth * 0.5f + TitleMenuTextPaddingLeft;
-                for (var i = 0; i < _titleLabels.Length; i++)
-                {
-                    var label = _titleLabels[i];
-                    label.alignment = TextAnchor.MiddleLeft;
-                    var rt = label.rectTransform;
-                    rt.pivot = new Vector2(0f, 0.5f);
-                    rt.anchoredPosition = new Vector2(menuLeftX, TitleMenuStartY - i * TitleMenuRowStep);
-                    rt.sizeDelta = new Vector2(TitleRedPanelWidth - TitleMenuTextPaddingLeft * 2f, TitleMenuRowStep);
-                    MasuFonts.Apply(label, TitleMenuFontSize);
-                    MasuUiFactory.ApplyBlackOutline(label, 1.4f);
-                }
+                _titleSidePanel.transform.SetAsFirstSibling();
+                var prt = _titleSidePanel.rectTransform;
+                prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
+                prt.pivot = new Vector2(0.5f, 0.5f);
+                prt.sizeDelta = new Vector2(TitleSidePanelWidth, TitleSidePanelHeight);
+                prt.anchoredPosition = TitleSidePanelPos;
+            }
+            var menuLeftX = TitleSidePanelPos.x - TitleSidePanelWidth * 0.5f + TitleMenuTextPaddingLeft;
+            for (var i = 0; i < _titleLabels.Length; i++)
+            {
+                var label = _titleLabels[i];
+                label.alignment = TextAnchor.MiddleLeft;
+                label.color = TitleMenuTextBlack;
+                var rt = label.rectTransform;
+                rt.pivot = new Vector2(0f, 0.5f);
+                rt.anchoredPosition = new Vector2(menuLeftX, TitleMenuStartY - i * TitleMenuRowStep);
+                rt.sizeDelta = new Vector2(TitleSidePanelWidth - TitleMenuTextPaddingLeft, TitleMenuRowStep);
+                MasuFonts.ApplyMincho(label, TitleMenuFontSize, bold: true);
+                var shadow = label.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+                shadow.effectDistance = new Vector2(3f, -3f);
             }
             HideTitleMenuItems();
             _menuPanels[AppScreen.Title] = titlePanel;
@@ -378,10 +387,10 @@ namespace Masu.UI
                 "　　　　　最終マスは Enter で確定（空欄は無視）・全マス○でクリア\n" +
                 "誤答 … +10秒　未入力（クラシック採点時）… +10秒\n\n" +
                 "【 メニュー 】\n" +
-                "はじめる … クラシック/クイック → 演算 → マス目\n" +
+                "はじめる … クラシック/クイック（↑↓で赤帯が移動）→ 演算 → マス目\n" +
                 "記録 … スコア一覧（←→ 演算　↑↓ 盤面）\n" +
                 "オプション … ビジュアル（戻るのみ） / エフェクト（ノーマル・ドーパミン）\n" +
-                "Esc … タイトル（演算はプレイスタイルへ、マス目は演算へ）\n" +
+                "Esc … タイトル（マス目→演算→クラシック/クイック→タイトル）\n" +
                 "操作説明 … Enter または Esc でタイトルへ\n\n" +
                 "【 リザルト 】\n" +
                 "記録確認画面 … Shift で3択メニューへ戻る",
@@ -389,47 +398,37 @@ namespace Masu.UI
             MasuUiFactory.Stretch(helpText.rectTransform, 48, 48, 48, 48);
             _menuPanels[AppScreen.Help] = helpPanel;
 
-            _modeLabels = BuildMenuList(_menuRoot, "Mode", OperationMenuLabelsJa(), out var modePanel,
-                startY: 20f);
-            _modeStepHint = MasuUiFactory.CreateText(modePanel.transform, "StepHint", "【 演算を選ぶ 】", 24,
-                MasuTheme.CursorGold);
-            _modeStepHint.rectTransform.anchorMin = _modeStepHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _modeStepHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _modeStepHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _modeStepHint.rectTransform.sizeDelta = new Vector2(480, 36);
-            _menuPanels[AppScreen.Mode] = modePanel;
+            _playStyleForestMenu = MasuForestSelectMenu.Create(_menuRoot, "PlayStyle", new[]
+            {
+                new ForestMenuRow("クラシック", "従来通りの100マス計算です"),
+                new ForestMenuRow("クイック", "記入した瞬間に正誤判定が行われます")
+            }, ForestMenuLayout.PlayStyleMock());
+            _menuPanels[AppScreen.PlayStyle] = _playStyleForestMenu.Panel;
 
-            _gridLabels = BuildMenuList(_menuRoot, "Grid",
-                Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel), out var gridPanel,
-                startY: 30f, rowStep: 44f);
-            _gridOpHint = MasuUiFactory.CreateText(gridPanel.transform, "OpHint", "", 24, MasuTheme.CursorGold);
-            _gridOpHint.rectTransform.anchorMin = _gridOpHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _gridOpHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _gridOpHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _gridOpHint.rectTransform.sizeDelta = new Vector2(480, 36);
-            _menuPanels[AppScreen.Grid] = gridPanel;
+            _modeForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Mode", new[]
+            {
+                new ForestMenuRow(Operation.Add.LabelJa()),
+                new ForestMenuRow(Operation.Sub.LabelJa()),
+                new ForestMenuRow(Operation.Mul.LabelJa()),
+                new ForestMenuRow(Operation.Div.LabelJa())
+            }, ForestMenuLayout.ForRowCount(4));
+            _menuPanels[AppScreen.Mode] = _modeForestMenu.Panel;
 
-            _playStyleLabels = BuildMenuList(_menuRoot, "PlayStyle",
-                new[] { GamePlayMode.Classic.LabelJa(), GamePlayMode.Quick.LabelJa() }, out var playStylePanel,
-                startY: 20f);
-            _playStyleStepHint = MasuUiFactory.CreateText(playStylePanel.transform, "StepHint", "【 プレイスタイルを選ぶ 】",
-                24, MasuTheme.CursorGold);
-            _playStyleStepHint.rectTransform.anchorMin = _playStyleStepHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _playStyleStepHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _playStyleStepHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _playStyleStepHint.rectTransform.sizeDelta = new Vector2(480, 36);
-            _playStyleHint = MasuUiFactory.CreateText(playStylePanel.transform, "GridHint", "", 22, MasuTheme.ResultText);
-            _playStyleHint.rectTransform.anchorMin = _playStyleHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _playStyleHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _playStyleHint.rectTransform.anchoredPosition = new Vector2(0, 158);
-            _playStyleHint.rectTransform.sizeDelta = new Vector2(480, 32);
-            _menuPanels[AppScreen.PlayStyle] = playStylePanel;
+            var gridRows = new ForestMenuRow[GameConstants.GridSizes.Length];
+            for (var i = 0; i < gridRows.Length; i++)
+            {
+                var size = GameConstants.GridSizes[i];
+                gridRows[i] = new ForestMenuRow(GridConfig.GridLabel(size), $"プレイ {size}×{size} マス");
+            }
+            _gridForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Grid", gridRows,
+                ForestMenuLayout.ForRowCount(gridRows.Length));
+            _menuPanels[AppScreen.Grid] = _gridForestMenu.Panel;
 
             BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
 
             _optionsLabels = BuildMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel,
-                startY: 20f);
+                startY: 20f, panelBackground: Color.clear);
             _optionsHint = MasuUiFactory.CreateText(optionsPanel.transform, "OpHint",
                 "【 オプション 】", 24, MasuTheme.CursorGold);
             _optionsHint.rectTransform.anchorMin = _optionsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -439,7 +438,7 @@ namespace Masu.UI
             _menuPanels[AppScreen.Options] = optionsPanel;
 
             _optionsVisualLabels = BuildMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
-                out var optionsVisualPanel, startY: 20f);
+                out var optionsVisualPanel, startY: 20f, panelBackground: Color.clear);
             _optionsVisualHint = MasuUiFactory.CreateText(optionsVisualPanel.transform, "OpHint",
                 "【 ビジュアル 】", 24, MasuTheme.CursorGold);
             _optionsVisualHint.rectTransform.anchorMin = _optionsVisualHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -450,7 +449,7 @@ namespace Masu.UI
 
             _optionsEffectsLabels = BuildMenuList(_menuRoot, "OptionsEffects",
                 new[] { MasuVisualProfile.Normal.LabelJa(), MasuVisualProfile.Dopamine.LabelJa(), "戻る" },
-                out var optionsEffectsPanel, startY: 20f);
+                out var optionsEffectsPanel, startY: 20f, panelBackground: Color.clear);
             _optionsEffectsHint = MasuUiFactory.CreateText(optionsEffectsPanel.transform, "OpHint",
                 "【 エフェクト 】", 24, MasuTheme.CursorGold);
             _optionsEffectsHint.rectTransform.anchorMin = _optionsEffectsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -469,35 +468,18 @@ namespace Masu.UI
             };
 
         /// <summary>
-        /// タイトル背景（紙テクスチャ＋森の写真＋ロゴ＋赤帯）。
+        /// タイトル背景（森の写真＋透過スクリム＋ロゴ）。
         /// 素材は Resources/TitleArt から読む。読めない場合は各要素 null のまま。
         /// </summary>
         private void BuildTitleBackdrop()
         {
             _titleBackdrop = new GameObject("TitleBackdrop", typeof(RectTransform));
             _titleBackdrop.transform.SetParent(_menuRoot, false);
-            MasuUiFactory.Stretch(_titleBackdrop.GetComponent<RectTransform>());
+            MasuUiFactory.StretchFullBleed(_titleBackdrop.GetComponent<RectTransform>(), BackdropBleedPixels);
 
-            _titlePaper = CreateTitleArtImage("Paper", "title_paper");
-            if (_titlePaper != null)
-                MasuUiFactory.Stretch(_titlePaper.rectTransform);
+            AddForestPhotoAndScrim(_titleBackdrop.transform, out _titlePhoto, out _titleScrim);
 
-            _titlePhoto = CreateTitleArtImage("Photo", "title_photo", TitlePhotoFrameCrop);
-            if (_titlePhoto != null)
-                MasuUiFactory.Stretch(_titlePhoto.rectTransform);
-
-            _titlePanelRed = CreateTitleArtImage("RedPanel", "title_panel");
-            if (_titlePanelRed != null)
-            {
-                var rt = _titlePanelRed.rectTransform;
-                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-                rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(TitleRedPanelWidth, TitleRedPanelHeight);
-                _titlePanelBasePos = TitleRedPanelCenter;
-                rt.anchoredPosition = _titlePanelBasePos;
-            }
-
-            _titleLogo = CreateTitleArtImage("Logo", "title_logo");
+            _titleLogo = CreateTitleArtImage(_titleBackdrop.transform, "Logo", "title_logo");
             if (_titleLogo != null)
             {
                 var rt = _titleLogo.rectTransform;
@@ -508,7 +490,7 @@ namespace Masu.UI
                 rt.anchoredPosition = _titleLogoBasePos;
             }
 
-            _titleSubtitle = CreateTitleArtImage("Subtitle", "title_subtitle");
+            _titleSubtitle = CreateTitleArtImage(_titleBackdrop.transform, "Subtitle", "title_subtitle");
             if (_titleSubtitle != null)
             {
                 var rt = _titleSubtitle.rectTransform;
@@ -521,17 +503,51 @@ namespace Masu.UI
             _titleBackdrop.SetActive(false);
         }
 
-        private Image CreateTitleArtImage(string name, string resourceName, int cropPx = 0)
+        private void BuildForestBackdrop()
+        {
+            _forestBackdrop = new GameObject("ForestBackdrop", typeof(RectTransform));
+            _forestBackdrop.transform.SetParent(_menuRoot, false);
+            MasuUiFactory.StretchFullBleed(_forestBackdrop.GetComponent<RectTransform>(), BackdropBleedPixels);
+            AddForestPhotoAndScrim(_forestBackdrop.transform, out _, out _);
+            _forestBackdrop.SetActive(false);
+        }
+
+        /// <summary>森写真の上に透過スクリムを1枚、画面全体に拡大して重ねる。</summary>
+        private void AddForestPhotoAndScrim(Transform parent, out Image photo, out Image scrim)
+        {
+            photo = CreateTitleArtImage(parent, "Photo", "title_photo");
+            if (photo != null)
+            {
+                photo.type = Image.Type.Simple;
+                MasuUiFactory.StretchFullBleed(photo.rectTransform, BackdropBleedPixels);
+            }
+            scrim = CreateTitleArtImage(parent, "Scrim", "title_scrim");
+            if (scrim != null)
+            {
+                scrim.type = Image.Type.Simple;
+                MasuUiFactory.StretchFullBleed(scrim.rectTransform, BackdropBleedPixels);
+            }
+        }
+
+        private static bool IsForestMenuScreen(AppScreen screen) =>
+            screen == AppScreen.PlayStyle || screen == AppScreen.Mode || screen == AppScreen.Grid
+            || screen == AppScreen.ScoreRanking
+            || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
+            || screen == AppScreen.OptionsEffects;
+
+        private Image CreateTitleArtImage(Transform parent, string name, string resourceName, int cropPx = 0)
         {
             var tex = Resources.Load<Texture2D>("TitleArt/" + resourceName);
             if (tex == null) return null;
             var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            go.transform.SetParent(_titleBackdrop.transform, false);
+            go.transform.SetParent(parent, false);
             var img = go.GetComponent<Image>();
             var crop = Mathf.Clamp(cropPx, 0, Mathf.Min(tex.width, tex.height) / 2 - 1);
             var rect = new Rect(crop, crop, tex.width - crop * 2, tex.height - crop * 2);
             img.sprite = Sprite.Create(tex, rect, new Vector2(0.5f, 0.5f), 100f);
+            img.type = Image.Type.Simple;
             img.preserveAspect = false;
+            img.useSpriteMesh = false;
             img.raycastTarget = false;
             return img;
         }
@@ -582,18 +598,18 @@ namespace Masu.UI
 
         private void BuildRankingPanel(out GameObject rankPanel)
         {
-            rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", MasuTheme.ResultBg);
+            rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", Color.clear);
             MasuUiFactory.Stretch(rankPanel.GetComponent<RectTransform>());
 
             var title = MasuUiFactory.CreateText(rankPanel.transform, "RankTitle", "記録",
-                MasuRankingLayout.TitleFontSize, MasuTheme.ResultText);
+                MasuRankingLayout.TitleFontSize, MasuTheme.CursorGold);
             MasuUiFactory.PlaceTopCenter(title.rectTransform, -28f, 480f, 64f);
 
             _rankingOpTabs = new Text[4];
             for (var i = 0; i < 4; i++)
             {
                 _rankingOpTabs[i] = MasuUiFactory.CreateText(rankPanel.transform, $"OpTab{i}",
-                    Operations[i].LabelJa(), MasuRankingLayout.OperationTabFontSize, MasuTheme.ResultText,
+                    Operations[i].LabelJa(), MasuRankingLayout.OperationTabFontSize, MasuTheme.Text,
                     TextAnchor.UpperCenter);
                 var opRt = _rankingOpTabs[i].rectTransform;
                 opRt.anchorMin = opRt.anchorMax = new Vector2(0.5f, 1f);
@@ -603,29 +619,29 @@ namespace Masu.UI
             }
 
             _rankingGridArrowUp = MasuUiFactory.CreateText(rankPanel.transform, "GridUp", "▲",
-                MasuRankingLayout.GridArrowFontSize, MasuTheme.ResultArrow);
+                MasuRankingLayout.GridArrowFontSize, MasuTheme.CursorGold);
             MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, -158f, 56f, 44f);
 
             _rankingGridLabel = MasuUiFactory.CreateText(rankPanel.transform, "GridLabel", "4×4",
-                MasuRankingLayout.GridLabelFontSize, MasuTheme.ResultText);
+                MasuRankingLayout.GridLabelFontSize, MasuTheme.Text);
             MasuUiFactory.PlaceTopCenter(_rankingGridLabel.rectTransform, -196f, 320f, 44f);
 
             _rankingGridArrowDown = MasuUiFactory.CreateText(rankPanel.transform, "GridDown", "▼",
-                MasuRankingLayout.GridArrowFontSize, MasuTheme.ResultArrow);
+                MasuRankingLayout.GridArrowFontSize, MasuTheme.CursorGold);
             MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, -234f, 56f, 44f);
 
             _rankingRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
                 _rankingRows[i] = MasuUiFactory.CreateText(rankPanel.transform, $"RankRow{i}", "-",
-                    MasuRankingLayout.RowFontSize, MasuTheme.ResultText, TextAnchor.MiddleCenter);
+                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleCenter);
                 MasuUiFactory.PlaceTopCenter(_rankingRows[i].rectTransform,
                     MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
                     MasuRankingLayout.RowWidth, 36f);
             }
 
             var hint = MasuUiFactory.CreateText(rankPanel.transform, "RankHint", "↑↓ マス目　←→ 演算　Esc タイトルへ",
-                MasuRankingLayout.HintFontSize, MasuTheme.ResultText, TextAnchor.LowerCenter);
+                MasuRankingLayout.HintFontSize, MasuTheme.TextDim, TextAnchor.LowerCenter);
             var hintRt = hint.rectTransform;
             hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
             hintRt.pivot = new Vector2(0.5f, 0f);
@@ -886,8 +902,12 @@ namespace Masu.UI
                 kv.Value.SetActive(kv.Key == screen);
             if (_titleBackdrop != null)
                 _titleBackdrop.SetActive(screen == AppScreen.Title);
+            if (_forestBackdrop != null)
+                _forestBackdrop.SetActive(IsForestMenuScreen(screen));
             // 画面に入った直後は、カーソルが変わっていなくても選択項目をスライドインさせる
             ForgetListCursor(LabelsForScreen(screen));
+            if (IsForestMenuScreen(screen))
+                SyncForestMenuHighlight(screen);
             if (screen == AppScreen.Title && !_titleOpPlayed)
             {
                 HideTitleMenuItems();
@@ -905,7 +925,7 @@ namespace Masu.UI
         private void StartTitleOpening()
         {
             StopTitleOpening();
-            if (_titleLogo == null || _titlePanelRed == null)
+            if (_titleLogo == null)
             {
                 FinishTitleOpening();
                 return;
@@ -934,7 +954,7 @@ namespace Masu.UI
 
         private void SnapTitleBackdropFinal()
         {
-            MasuUiAnimations.SetAlpha(_titlePaper, 1f);
+            MasuUiAnimations.SetAlpha(_titleScrim, 1f);
             MasuUiAnimations.SetAlpha(_titlePhoto, 1f);
             MasuUiAnimations.SetAlpha(_titleSubtitle, 1f);
             if (_titleLogo != null)
@@ -942,10 +962,16 @@ namespace Masu.UI
                 MasuUiAnimations.SetAlpha(_titleLogo, 1f);
                 _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos;
             }
-            if (_titlePanelRed != null)
+            if (_titleSidePanel != null)
             {
-                MasuUiAnimations.SetAlpha(_titlePanelRed, 1f);
-                _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos;
+                MasuUiAnimations.SetAlpha(_titleSidePanel, 1f);
+                _titleSidePanel.rectTransform.anchoredPosition = TitleSidePanelPos;
+            }
+            if (_titleLabels != null)
+            {
+                foreach (var label in _titleLabels)
+                    if (label != null && label.color.a <= 0f)
+                        MasuUiAnimations.SetAlpha(label, 1f);
             }
         }
 
@@ -957,18 +983,18 @@ namespace Masu.UI
                 if (label == null) continue;
                 MasuUiAnimations.SetAlpha(label, 0f);
             }
+            if (_titleSidePanel != null)
+                MasuUiAnimations.SetAlpha(_titleSidePanel, 0f);
         }
 
         private IEnumerator PlayTitleOpening()
         {
             HideTitleMenuItems();
-            MasuUiAnimations.SetAlpha(_titlePaper, 0f);
+            MasuUiAnimations.SetAlpha(_titleScrim, 0f);
             MasuUiAnimations.SetAlpha(_titlePhoto, 0f);
             MasuUiAnimations.SetAlpha(_titleLogo, 0f);
             MasuUiAnimations.SetAlpha(_titleSubtitle, 0f);
-            MasuUiAnimations.SetAlpha(_titlePanelRed, 0f);
             _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos + new Vector2(TitleOpSlideOffset, 0f);
-            _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos - new Vector2(TitleOpSlideOffset, 0f);
 
             var t = 0f;
             const float bgFadeSec = 0.45f;
@@ -976,7 +1002,7 @@ namespace Masu.UI
             {
                 t += Time.unscaledDeltaTime;
                 var a = Mathf.Clamp01(t / bgFadeSec);
-                MasuUiAnimations.SetAlpha(_titlePaper, a);
+                MasuUiAnimations.SetAlpha(_titleScrim, a);
                 MasuUiAnimations.SetAlpha(_titlePhoto, a);
                 yield return null;
             }
@@ -996,20 +1022,22 @@ namespace Masu.UI
             _titleLogo.rectTransform.anchoredPosition = _titleLogoBasePos;
             yield return MasuUiAnimations.FadeAlpha(_titleSubtitle, 0f, 1f, 0.22f);
 
-            t = 0f;
-            const float panelSlideSec = 0.5f;
-            while (t < panelSlideSec)
+            if (_titleSidePanel != null)
             {
-                t += Time.unscaledDeltaTime;
-                var p = Mathf.Clamp01(t / panelSlideSec);
-                var e = MasuUiAnimations.EaseOutCubic(p);
-                _titlePanelRed.rectTransform.anchoredPosition =
-                    _titlePanelBasePos - new Vector2(TitleOpSlideOffset * (1f - e), 0f);
-                MasuUiAnimations.SetAlpha(_titlePanelRed, p);
-                yield return null;
+                var prt = _titleSidePanel.rectTransform;
+                t = 0f;
+                const float panelSlideSec = 0.5f;
+                while (t < panelSlideSec)
+                {
+                    t += Time.unscaledDeltaTime;
+                    var p = Mathf.Clamp01(t / panelSlideSec);
+                    var e = MasuUiAnimations.EaseOutCubic(p);
+                    prt.anchoredPosition = TitleSidePanelPos - new Vector2(TitleOpSlideOffset * (1f - e), 0f);
+                    MasuUiAnimations.SetAlpha(_titleSidePanel, p);
+                    yield return null;
+                }
+                prt.anchoredPosition = TitleSidePanelPos;
             }
-            _titlePanelRed.rectTransform.anchoredPosition = _titlePanelBasePos;
-
             yield return RevealTitleMenuItems();
             _titleOpRoutine = null;
             FinishTitleOpening();
@@ -1022,20 +1050,8 @@ namespace Masu.UI
             {
                 var label = _titleLabels[i];
                 if (label == null) continue;
-                var basePos = BasePosOf(label);
-                var from = basePos + new Vector2(-28f, 0f);
-                var elapsed = 0f;
-                const float dur = 0.18f;
-                while (elapsed < dur)
-                {
-                    elapsed += Time.unscaledDeltaTime;
-                    var p = MasuUiAnimations.EaseOutCubic(elapsed / dur);
-                    label.rectTransform.anchoredPosition = Vector2.LerpUnclamped(from, basePos, p);
-                    MasuUiAnimations.SetAlpha(label, p);
-                    yield return null;
-                }
-                label.rectTransform.anchoredPosition = basePos;
-                MasuUiAnimations.SetAlpha(label, 1f);
+                MasuUiAnimations.SetAlpha(label, 0f);
+                yield return MasuUiAnimations.FadeAlpha(label, 0f, 1f, 0.16f);
             }
         }
 
@@ -1049,12 +1065,49 @@ namespace Masu.UI
             RefreshMenuHighlights();
         }
 
+        private void SyncForestMenuHighlight(AppScreen screen, bool immediate = true)
+        {
+            if (_forestHighlightRoutine != null)
+            {
+                StopCoroutine(_forestHighlightRoutine);
+                _forestHighlightRoutine = null;
+            }
+            if (screen == AppScreen.PlayStyle)
+                _playStyleForestMenu?.SetHighlightIndex(_playStyleCursor, immediate);
+            else if (screen == AppScreen.Mode)
+                _modeForestMenu?.SetHighlightIndex(_modeCursor, immediate);
+            else if (screen == AppScreen.Grid)
+                _gridForestMenu?.SetHighlightIndex(_gridCursor, immediate);
+        }
+
+        private void MoveForestHighlight(MasuForestSelectMenu menu, int index)
+        {
+            if (menu == null) return;
+            if (_forestHighlightRoutine != null)
+                StopCoroutine(_forestHighlightRoutine);
+            _forestHighlightRoutine = StartCoroutine(AnimateForestHighlight(menu, index));
+        }
+
+        private IEnumerator AnimateForestHighlight(MasuForestSelectMenu menu, int index)
+        {
+            var targetY = menu.RowY(index);
+            var startY = menu.HighlightY;
+            var elapsed = 0f;
+            const float dur = 0.16f;
+            while (elapsed < dur)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var p = MasuUiAnimations.EaseOutCubic(elapsed / dur);
+                menu.SetHighlightY(Mathf.LerpUnclamped(startY, targetY, p));
+                yield return null;
+            }
+            menu.SetHighlightIndex(index, true);
+            _forestHighlightRoutine = null;
+        }
+
         private Text[] LabelsForScreen(AppScreen screen) => screen switch
         {
             AppScreen.Title => _titleLabels,
-            AppScreen.Mode => _modeLabels,
-            AppScreen.Grid => _gridLabels,
-            AppScreen.PlayStyle => _playStyleLabels,
             AppScreen.Options => _optionsLabels,
             AppScreen.OptionsVisual => _optionsVisualLabels,
             AppScreen.OptionsEffects => _optionsEffectsLabels,
@@ -1112,23 +1165,6 @@ namespace Masu.UI
         {
             if (_titleOpRoutine == null)
                 HighlightTitleMenuList();
-            HighlightList(_modeLabels, _modeCursor, OperationMenuLabelsJa());
-            if (_modeStepHint != null)
-                _modeStepHint.text = $"【 {_pendingPlayMode.LabelJa()} 】 演算を選ぶ";
-            HighlightList(_gridLabels, _gridCursor,
-                Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel));
-            if (_gridOpHint != null)
-                _gridOpHint.text =
-                    $"【 {_pendingOperation.LabelJa()} ・ {_pendingPlayMode.LabelJa()} 】";
-
-            if (_playStyleLabels != null)
-            {
-                HighlightList(_playStyleLabels, _playStyleCursor,
-                    new[] { GamePlayMode.Classic.LabelJa(), GamePlayMode.Quick.LabelJa() });
-                if (_playStyleHint != null)
-                    _playStyleHint.text = "";
-            }
-
             if (_screen == AppScreen.Options)
                 RefreshOptionsMenuHighlights();
             if (_screen == AppScreen.OptionsVisual)
@@ -1137,7 +1173,7 @@ namespace Masu.UI
                 RefreshOptionsEffectsMenuHighlights();
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
-                _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.ResultText;
+                _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.Text;
             if (_rankingGridLabel != null)
             {
                 var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
@@ -1155,7 +1191,7 @@ namespace Masu.UI
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
         }
 
-        /// <summary>タイトルメニュー（▶ なし・赤枠内左寄せ）。</summary>
+        /// <summary>タイトルメニュー（赤パネル上・黒明朝・左寄せ。選択中は濃く、他は薄く）。</summary>
         private void HighlightTitleMenuList()
         {
             if (_titleLabels == null || _titleLabels.Length == 0) return;
@@ -1165,20 +1201,22 @@ namespace Masu.UI
             for (var i = 0; i < _titleLabels.Length; i++)
             {
                 _titleLabels[i].text = TitleMenuItems[i];
-                var sel = i == _titleMenu;
-                if (!sel)
-                {
-                    RestoreLabelPose(_titleLabels[i]);
-                    _titleLabels[i].color = MasuTheme.Text;
-                }
+                if (i == _titleMenu) continue;
+                RestoreLabelPose(_titleLabels[i]);
+                _titleLabels[i].color = TitleMenuTextIdle;
             }
 
             if (_titleMenu < 0 || _titleMenu >= _titleLabels.Length) return;
             var selected = _titleLabels[_titleMenu];
             if (changed && selected.gameObject.activeInHierarchy)
-                PlaySelectSlideIn(selected);
+            {
+                RestoreLabelPose(selected);
+                _labelAnims[selected] = StartCoroutine(RunLabelAnim(selected,
+                    MasuUiAnimations.SlideInFlash(selected, BasePosOf(selected), SelectSlideOffsetX * 0.5f,
+                        SelectSlideSeconds, TitleMenuTextBlack, Color.white, SelectFlashCount)));
+            }
             else if (!_labelAnims.ContainsKey(selected))
-                selected.color = MasuTheme.CursorGold;
+                selected.color = TitleMenuTextBlack;
         }
 
         /// <summary>
@@ -1271,7 +1309,9 @@ namespace Masu.UI
             if (label != null)
             {
                 RestoreLabelPose(label);
-                yield return MasuUiAnimations.Flash(label, MasuTheme.CursorGold, Color.white,
+                var baseColor = label.color;
+                baseColor.a = 1f;
+                yield return MasuUiAnimations.Flash(label, baseColor, Color.white,
                     DecideFlashCount, DecideFlashInterval);
             }
             _menuBusy = false;
@@ -2081,8 +2121,24 @@ namespace Masu.UI
             }
 
             const int titleCount = 4;
-            if (Input.GetKeyDown(KeyCode.UpArrow)) { _titleMenu = NavVertical(_titleMenu, -1, titleCount); RefreshMenuHighlights(); }
-            else if (Input.GetKeyDown(KeyCode.DownArrow)) { _titleMenu = NavVertical(_titleMenu, 1, titleCount); RefreshMenuHighlights(); }
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                var next = NavVertical(_titleMenu, -1, titleCount);
+                if (next != _titleMenu)
+                {
+                    _titleMenu = next;
+                    RefreshMenuHighlights();
+                }
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                var next = NavVertical(_titleMenu, 1, titleCount);
+                if (next != _titleMenu)
+                {
+                    _titleMenu = next;
+                    RefreshMenuHighlights();
+                }
+            }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _titleMenu;
@@ -2105,12 +2161,29 @@ namespace Masu.UI
 
         private void HandleModeInput()
         {
-            if (Input.GetKeyDown(KeyCode.UpArrow)) { _modeCursor = NavVertical(_modeCursor, -1, 4); RefreshMenuHighlights(); }
-            else if (Input.GetKeyDown(KeyCode.DownArrow)) { _modeCursor = NavVertical(_modeCursor, 1, 4); RefreshMenuHighlights(); }
+            const int count = 4;
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                var next = NavVertical(_modeCursor, -1, count);
+                if (next != _modeCursor)
+                {
+                    _modeCursor = next;
+                    MoveForestHighlight(_modeForestMenu, _modeCursor);
+                }
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                var next = NavVertical(_modeCursor, 1, count);
+                if (next != _modeCursor)
+                {
+                    _modeCursor = next;
+                    MoveForestHighlight(_modeForestMenu, _modeCursor);
+                }
+            }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _modeCursor;
-                Decide(_modeLabels[choice], () =>
+                Decide(_modeForestMenu.TitleLabel(choice), () =>
                 {
                     _pendingOperation = Operations[choice];
                     _gridCursor = 0;
@@ -2124,14 +2197,30 @@ namespace Masu.UI
         private void HandleGridInput()
         {
             var n = GameConstants.GridSizes.Length;
-            if (Input.GetKeyDown(KeyCode.UpArrow)) { _gridCursor = NavVertical(_gridCursor, -1, n); RefreshMenuHighlights(); }
-            else if (Input.GetKeyDown(KeyCode.DownArrow)) { _gridCursor = NavVertical(_gridCursor, 1, n); RefreshMenuHighlights(); }
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                var next = NavVertical(_gridCursor, -1, n);
+                if (next != _gridCursor)
+                {
+                    _gridCursor = next;
+                    MoveForestHighlight(_gridForestMenu, _gridCursor);
+                }
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                var next = NavVertical(_gridCursor, 1, n);
+                if (next != _gridCursor)
+                {
+                    _gridCursor = next;
+                    MoveForestHighlight(_gridForestMenu, _gridCursor);
+                }
+            }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _gridCursor;
                 var op = _pendingOperation;
                 var mode = _pendingPlayMode;
-                Decide(_gridLabels[choice], () =>
+                Decide(_gridForestMenu.TitleLabel(choice), () =>
                 {
                     _pendingGridSize = GameConstants.GridSizes[choice];
                     StartCoroutine(GameStartTransition(op, new PlayBoard(_pendingGridSize, mode)));
@@ -2142,20 +2231,29 @@ namespace Masu.UI
 
         private void HandlePlayStyleInput()
         {
+            const int count = 2;
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
-                _playStyleCursor = NavVertical(_playStyleCursor, -1, 2);
-                RefreshMenuHighlights();
+                var next = NavVertical(_playStyleCursor, -1, count);
+                if (next != _playStyleCursor)
+                {
+                    _playStyleCursor = next;
+                    MoveForestHighlight(_playStyleForestMenu, _playStyleCursor);
+                }
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
-                _playStyleCursor = NavVertical(_playStyleCursor, 1, 2);
-                RefreshMenuHighlights();
+                var next = NavVertical(_playStyleCursor, 1, count);
+                if (next != _playStyleCursor)
+                {
+                    _playStyleCursor = next;
+                    MoveForestHighlight(_playStyleForestMenu, _playStyleCursor);
+                }
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _playStyleCursor;
-                Decide(_playStyleLabels[choice], () =>
+                Decide(_playStyleForestMenu.TitleLabel(choice), () =>
                 {
                     _pendingPlayMode = choice == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
                     _modeCursor = 0;
@@ -2163,9 +2261,7 @@ namespace Masu.UI
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
-            {
                 ShowScreen(AppScreen.Title);
-            }
         }
 
         private void HandleRankingInput()

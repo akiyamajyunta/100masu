@@ -25,7 +25,13 @@ namespace Masu.UI
             "Century Gothic", "Century", "Century Schoolbook", "Segoe UI", "Yu Gothic UI"
         };
 
+        private static readonly string[] MinchoFontFamilies =
+        {
+            "Yu Mincho", "游明朝", "MS Mincho", "Hiragino Mincho ProN", "Yu Mincho Demibold", "MS PMincho"
+        };
+
         private static readonly Dictionary<int, Font> Cache = new();
+        private static readonly Dictionary<int, Font> MinchoCache = new();
         private static readonly Dictionary<int, Font> TimerCache = new();
         private static readonly Dictionary<int, Font> KeyboardCache = new();
 
@@ -50,6 +56,23 @@ namespace Masu.UI
             text.font = GetForSize(size);
             if (!string.IsNullOrEmpty(text.text))
                 text.font.RequestCharactersInTexture(text.text, size, text.fontStyle);
+        }
+
+        /// <summary>タイトル画面・森メニューの大見出し用（明朝）。</summary>
+        public static void ApplyMincho(Text text, int fontSize, bool bold = false)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!MinchoCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(MinchoFontFamilies, bucket);
+                MinchoCache[bucket] = font;
+            }
+            text.font = font;
+            text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            if (!string.IsNullOrEmpty(text.text))
+                font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
         }
 
         public static void ApplyKeyboard(Text text, int fontSize)
@@ -85,7 +108,7 @@ namespace Masu.UI
 
         private static int BucketSize(int fontSize)
         {
-            var s = Mathf.Clamp(fontSize, 10, 72);
+            var s = Mathf.Clamp(fontSize, 10, 128);
             return Mathf.CeilToInt(s / 4f) * 4;
         }
     }
