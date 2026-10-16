@@ -23,13 +23,17 @@ namespace Masu.UI
             Transform menuRoot,
             string panelName,
             ForestMenuRow[] rows,
-            ForestMenuLayout? layout = null)
+            ForestMenuLayout? layout = null,
+            string instruction = null)
         {
             layout ??= ForestMenuLayout.ForRowCount(rows.Length);
 
             var panelGo = new GameObject(panelName, typeof(RectTransform));
             panelGo.transform.SetParent(menuRoot, false);
             MasuUiFactory.Stretch(panelGo.GetComponent<RectTransform>());
+
+            if (!string.IsNullOrEmpty(instruction))
+                MasuInstructionBanner.Create(panelGo.transform, instruction);
 
             var rowY = layout.RowCenterY(rows.Length);
 

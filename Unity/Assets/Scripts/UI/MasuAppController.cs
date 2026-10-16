@@ -97,15 +97,14 @@ namespace Masu.UI
         private Text _optionsHint;
         private int _optionsCursor;
         private Text[] _optionsVisualLabels;
-        private Text _optionsVisualHint;
         private int _optionsVisualCursor;
         private Text[] _optionsEffectsLabels;
-        private Text _optionsEffectsHint;
         private int _optionsEffectsCursor;
         private static readonly string[] OptionsMenuItems = { "ビジュアル", "エフェクト", "戻る" };
         private static readonly string[] OptionsVisualMenuItems = { "戻る" };
         private Text[] _rankingOpTabs;
-        private Text _rankingGridLabel;
+        private Text _rankingGridSizeLabel;
+        private Text _rankingGridModeLabel;
         private Text _rankingGridArrowUp;
         private Text _rankingGridArrowDown;
         private Text[] _rankingRows;
@@ -402,7 +401,7 @@ namespace Masu.UI
             {
                 new ForestMenuRow("クラシック", "従来通りの100マス計算です"),
                 new ForestMenuRow("クイック", "記入した瞬間に正誤判定が行われます")
-            }, ForestMenuLayout.PlayStyleMock());
+            }, ForestMenuLayout.PlayStyleMock(), instruction: "お好みのゲームモードをお選びください");
             _menuPanels[AppScreen.PlayStyle] = _playStyleForestMenu.Panel;
 
             _modeForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Mode", new[]
@@ -411,7 +410,7 @@ namespace Masu.UI
                 new ForestMenuRow(Operation.Sub.LabelJa()),
                 new ForestMenuRow(Operation.Mul.LabelJa()),
                 new ForestMenuRow(Operation.Div.LabelJa())
-            }, ForestMenuLayout.ForRowCount(4));
+            }, ForestMenuLayout.ForRowCount(4), instruction: "お好みの演算をお選びください");
             _menuPanels[AppScreen.Mode] = _modeForestMenu.Panel;
 
             var gridRows = new ForestMenuRow[GameConstants.GridSizes.Length];
@@ -421,41 +420,25 @@ namespace Masu.UI
                 gridRows[i] = new ForestMenuRow(GridConfig.GridLabel(size), $"プレイ {size}×{size} マス");
             }
             _gridForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Grid", gridRows,
-                ForestMenuLayout.ForRowCount(gridRows.Length));
+                ForestMenuLayout.ForRowCount(gridRows.Length), instruction: "マス目を選択してください");
             _menuPanels[AppScreen.Grid] = _gridForestMenu.Panel;
 
             BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
 
-            _optionsLabels = BuildMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel,
-                startY: 20f, panelBackground: Color.clear);
-            _optionsHint = MasuUiFactory.CreateText(optionsPanel.transform, "OpHint",
-                "【 オプション 】", 24, MasuTheme.CursorGold);
-            _optionsHint.rectTransform.anchorMin = _optionsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _optionsHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _optionsHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _optionsHint.rectTransform.sizeDelta = new Vector2(720, 36);
+            _optionsLabels = BuildOverlayMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel);
+            _optionsHint = CreateOverlaySectionTitle(optionsPanel.transform, "オプション");
             _menuPanels[AppScreen.Options] = optionsPanel;
 
-            _optionsVisualLabels = BuildMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
-                out var optionsVisualPanel, startY: 20f, panelBackground: Color.clear);
-            _optionsVisualHint = MasuUiFactory.CreateText(optionsVisualPanel.transform, "OpHint",
-                "【 ビジュアル 】", 24, MasuTheme.CursorGold);
-            _optionsVisualHint.rectTransform.anchorMin = _optionsVisualHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _optionsVisualHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _optionsVisualHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _optionsVisualHint.rectTransform.sizeDelta = new Vector2(720, 36);
+            _optionsVisualLabels = BuildOverlayMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
+                out var optionsVisualPanel);
+            MasuInstructionBanner.Create(optionsVisualPanel.transform, "お好みのビジュアルをお選びください");
             _menuPanels[AppScreen.OptionsVisual] = optionsVisualPanel;
 
-            _optionsEffectsLabels = BuildMenuList(_menuRoot, "OptionsEffects",
+            _optionsEffectsLabels = BuildOverlayMenuList(_menuRoot, "OptionsEffects",
                 new[] { MasuVisualProfile.Normal.LabelJa(), MasuVisualProfile.Dopamine.LabelJa(), "戻る" },
-                out var optionsEffectsPanel, startY: 20f, panelBackground: Color.clear);
-            _optionsEffectsHint = MasuUiFactory.CreateText(optionsEffectsPanel.transform, "OpHint",
-                "【 エフェクト 】", 24, MasuTheme.CursorGold);
-            _optionsEffectsHint.rectTransform.anchorMin = _optionsEffectsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _optionsEffectsHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _optionsEffectsHint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            _optionsEffectsHint.rectTransform.sizeDelta = new Vector2(720, 36);
+                out var optionsEffectsPanel);
+            MasuInstructionBanner.Create(optionsEffectsPanel.transform, "お好みのエフェクトをお選びください");
             _menuPanels[AppScreen.OptionsEffects] = optionsEffectsPanel;
         }
 
@@ -596,57 +579,143 @@ namespace Masu.UI
             }
         }
 
+        private static readonly Color RankingTextWhite = Color.white;
+
+        private static void StyleRankingJapanese(Text label, int fontSize, bool bold = false)
+        {
+            if (label == null) return;
+            label.color = RankingTextWhite;
+            MasuUiFactory.ApplyBlackOutline(label, 2f);
+            MasuFonts.ApplyRankingMincho(label, fontSize, bold);
+        }
+
+        private static void StyleRankingLatin(Text label, int fontSize, bool bold = false)
+        {
+            if (label == null) return;
+            label.color = RankingTextWhite;
+            MasuUiFactory.ApplyBlackOutline(label, 2f);
+            MasuFonts.ApplyRankingLatin(label, fontSize, bold);
+        }
+
+        private static Text CreateOverlaySectionTitle(Transform parent, string title)
+        {
+            var hint = MasuUiFactory.CreateText(parent, "SectionTitle", title,
+                MasuOptionsLayout.SectionTitleFontSize, RankingTextWhite);
+            hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            hint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            hint.rectTransform.anchoredPosition = new Vector2(0, 200);
+            hint.rectTransform.sizeDelta = new Vector2(720, MasuOptionsLayout.SectionTitleFontSize + 12f);
+            StyleRankingJapanese(hint, MasuOptionsLayout.SectionTitleFontSize, bold: true);
+            return hint;
+        }
+
+        private static Text[] BuildOverlayMenuList(
+            Transform parent,
+            string panelName,
+            string[] items,
+            out GameObject panel)
+        {
+            panel = MasuUiFactory.CreatePanel(parent, panelName, Color.clear);
+            var labels = new Text[items.Length];
+            for (var i = 0; i < items.Length; i++)
+            {
+                labels[i] = MasuUiFactory.CreateText(panel.transform, $"Item{i}", items[i],
+                    MasuOptionsLayout.MenuFontSize, RankingTextWhite);
+                labels[i].rectTransform.anchoredPosition = new Vector2(0,
+                    MasuOptionsLayout.MenuStartY - i * MasuOptionsLayout.MenuRowStep);
+                labels[i].rectTransform.sizeDelta = new Vector2(720, MasuOptionsLayout.MenuFontSize + 16f);
+                StyleRankingJapanese(labels[i], MasuOptionsLayout.MenuFontSize);
+            }
+            return labels;
+        }
+
+        /// <summary>記録・オプション共通。白＋黒縁＋明朝、選択は太字。</summary>
+        private void HighlightOverlayMenuList(Text[] labels, int cursor, string[] items)
+        {
+            if (labels == null || labels.Length == 0) return;
+            _listCursorMemo[labels] = cursor;
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var sel = i == cursor;
+                labels[i].text = items[i];
+                labels[i].color = RankingTextWhite;
+                MasuFonts.ApplyRankingMincho(labels[i], MasuOptionsLayout.MenuFontSize, bold: sel);
+                RestoreLabelPose(labels[i]);
+            }
+        }
+
         private void BuildRankingPanel(out GameObject rankPanel)
         {
             rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", Color.clear);
             MasuUiFactory.Stretch(rankPanel.GetComponent<RectTransform>());
 
-            var title = MasuUiFactory.CreateText(rankPanel.transform, "RankTitle", "記録",
-                MasuRankingLayout.TitleFontSize, MasuTheme.CursorGold);
-            MasuUiFactory.PlaceTopCenter(title.rectTransform, -28f, 480f, 64f);
+            MasuInstructionBanner.Create(rankPanel.transform, "記録");
 
             _rankingOpTabs = new Text[4];
             for (var i = 0; i < 4; i++)
             {
                 _rankingOpTabs[i] = MasuUiFactory.CreateText(rankPanel.transform, $"OpTab{i}",
-                    Operations[i].LabelJa(), MasuRankingLayout.OperationTabFontSize, MasuTheme.Text,
+                    Operations[i].LabelJa(), MasuRankingLayout.OperationTabFontSize, RankingTextWhite,
                     TextAnchor.UpperCenter);
+                StyleRankingJapanese(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize);
                 var opRt = _rankingOpTabs[i].rectTransform;
                 opRt.anchorMin = opRt.anchorMax = new Vector2(0.5f, 1f);
                 opRt.pivot = new Vector2(0.5f, 1f);
-                opRt.anchoredPosition = new Vector2(-270f + i * 180f, -108f);
-                opRt.sizeDelta = new Vector2(170f, 40f);
+                opRt.anchoredPosition = new Vector2(-270f + i * 180f, -104f);
+                opRt.sizeDelta = new Vector2(180f, 48f);
             }
 
             _rankingGridArrowUp = MasuUiFactory.CreateText(rankPanel.transform, "GridUp", "▲",
-                MasuRankingLayout.GridArrowFontSize, MasuTheme.CursorGold);
-            MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, -158f, 56f, 44f);
+                MasuRankingLayout.GridArrowFontSize, RankingTextWhite);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, -154f, 56f, 48f);
+            StyleRankingJapanese(_rankingGridArrowUp, MasuRankingLayout.GridArrowFontSize);
 
-            _rankingGridLabel = MasuUiFactory.CreateText(rankPanel.transform, "GridLabel", "4×4",
-                MasuRankingLayout.GridLabelFontSize, MasuTheme.Text);
-            MasuUiFactory.PlaceTopCenter(_rankingGridLabel.rectTransform, -196f, 320f, 44f);
+            var gridRow = new GameObject("GridRow", typeof(RectTransform));
+            gridRow.transform.SetParent(rankPanel.transform, false);
+            MasuUiFactory.PlaceTopCenter(gridRow.GetComponent<RectTransform>(), -192f, 440f, 52f);
+
+            _rankingGridSizeLabel = MasuUiFactory.CreateText(gridRow.transform, "GridSize", "4×4",
+                MasuRankingLayout.GridSizeFontSize, RankingTextWhite, TextAnchor.MiddleRight);
+            StyleRankingLatin(_rankingGridSizeLabel, MasuRankingLayout.GridSizeFontSize);
+            var sizeRt = _rankingGridSizeLabel.rectTransform;
+            sizeRt.anchorMin = sizeRt.anchorMax = new Vector2(0.5f, 0.5f);
+            sizeRt.pivot = new Vector2(1f, 0.5f);
+            sizeRt.anchoredPosition = new Vector2(-6f, 0f);
+            sizeRt.sizeDelta = new Vector2(140f, 52f);
+
+            _rankingGridModeLabel = MasuUiFactory.CreateText(gridRow.transform, "GridMode", "クラシック",
+                MasuRankingLayout.GridModeFontSize, RankingTextWhite, TextAnchor.MiddleLeft);
+            StyleRankingJapanese(_rankingGridModeLabel, MasuRankingLayout.GridModeFontSize);
+            var modeRt = _rankingGridModeLabel.rectTransform;
+            modeRt.anchorMin = modeRt.anchorMax = new Vector2(0.5f, 0.5f);
+            modeRt.pivot = new Vector2(0f, 0.5f);
+            modeRt.anchoredPosition = new Vector2(6f, 0f);
+            modeRt.sizeDelta = new Vector2(220f, 52f);
 
             _rankingGridArrowDown = MasuUiFactory.CreateText(rankPanel.transform, "GridDown", "▼",
-                MasuRankingLayout.GridArrowFontSize, MasuTheme.CursorGold);
-            MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, -234f, 56f, 44f);
+                MasuRankingLayout.GridArrowFontSize, RankingTextWhite);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, -230f, 56f, 48f);
+            StyleRankingJapanese(_rankingGridArrowDown, MasuRankingLayout.GridArrowFontSize);
 
             _rankingRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
                 _rankingRows[i] = MasuUiFactory.CreateText(rankPanel.transform, $"RankRow{i}", "-",
-                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleCenter);
+                    MasuRankingLayout.RowFontSize, RankingTextWhite, TextAnchor.MiddleCenter);
+                StyleRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
                 MasuUiFactory.PlaceTopCenter(_rankingRows[i].rectTransform,
                     MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
-                    MasuRankingLayout.RowWidth, 36f);
+                    MasuRankingLayout.RowWidth, 46f);
             }
 
             var hint = MasuUiFactory.CreateText(rankPanel.transform, "RankHint", "↑↓ マス目　←→ 演算　Esc タイトルへ",
-                MasuRankingLayout.HintFontSize, MasuTheme.TextDim, TextAnchor.LowerCenter);
+                MasuRankingLayout.HintFontSize, RankingTextWhite, TextAnchor.LowerCenter);
+            StyleRankingJapanese(hint, MasuRankingLayout.HintFontSize);
             var hintRt = hint.rectTransform;
             hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
             hintRt.pivot = new Vector2(0.5f, 0f);
             hintRt.anchoredPosition = new Vector2(0, 24);
-            hintRt.sizeDelta = new Vector2(900, 28);
+            hintRt.sizeDelta = new Vector2(920, 32);
         }
 
         private void BuildGameLayer()
@@ -1173,11 +1242,19 @@ namespace Masu.UI
                 RefreshOptionsEffectsMenuHighlights();
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
-                _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.Text;
-            if (_rankingGridLabel != null)
+            {
+                var selected = i == _rankingOpCursor;
+                _rankingOpTabs[i].color = RankingTextWhite;
+                MasuFonts.ApplyRankingMincho(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize,
+                    bold: selected);
+            }
+            if (_rankingGridSizeLabel != null && _rankingGridModeLabel != null)
             {
                 var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
-                _rankingGridLabel.text = PlayBoardCatalog.Label(board);
+                _rankingGridSizeLabel.text = $"{board.PlaySize}×{board.PlaySize}";
+                _rankingGridModeLabel.text = board.Mode.LabelJa();
+                MasuFonts.ApplyRankingLatin(_rankingGridSizeLabel, MasuRankingLayout.GridSizeFontSize);
+                MasuFonts.ApplyRankingMincho(_rankingGridModeLabel, MasuRankingLayout.GridModeFontSize);
             }
             RefreshRankingTable();
         }
@@ -1188,7 +1265,10 @@ namespace Masu.UI
             var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
             for (var i = 0; i < 10; i++)
+            {
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
+                MasuFonts.ApplyRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
+            }
         }
 
         /// <summary>タイトルメニュー（赤パネル上・黒明朝・左寄せ。選択中は濃く、他は薄く）。</summary>
@@ -2019,13 +2099,13 @@ namespace Masu.UI
         }
 
         private void RefreshOptionsMenuHighlights() =>
-            HighlightList(_optionsLabels, _optionsCursor, OptionsMenuItems);
+            HighlightOverlayMenuList(_optionsLabels, _optionsCursor, OptionsMenuItems);
 
         private void RefreshOptionsVisualMenuHighlights() =>
-            HighlightList(_optionsVisualLabels, _optionsVisualCursor, OptionsVisualMenuItems);
+            HighlightOverlayMenuList(_optionsVisualLabels, _optionsVisualCursor, OptionsVisualMenuItems);
 
         private void RefreshOptionsEffectsMenuHighlights() =>
-            HighlightList(_optionsEffectsLabels, _optionsEffectsCursor, OptionsEffectsMenuLabels());
+            HighlightOverlayMenuList(_optionsEffectsLabels, _optionsEffectsCursor, OptionsEffectsMenuLabels());
 
         private void OpenOptionsVisualScreen()
         {

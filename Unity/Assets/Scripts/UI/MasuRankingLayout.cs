@@ -2,15 +2,16 @@ namespace Masu.UI
 {
     public static class MasuRankingLayout
     {
-        public const int TitleFontSize = 56;
-        public const int OperationTabFontSize = 30;
-        public const int GridLabelFontSize = 34;
-        public const int GridArrowFontSize = 38;
-        public const int RowFontSize = 28;
-        public const int HintFontSize = 20;
+        public const int TitleFontSize = 72;
+        public const int OperationTabFontSize = 38;
+        public const int GridSizeFontSize = 40;
+        public const int GridModeFontSize = 36;
+        public const int GridArrowFontSize = 44;
+        public const int RowFontSize = 36;
+        public const int HintFontSize = 24;
 
-        public const float RowLineHeight = 40f;
-        public const float RowStartY = -290f;
-        public const float RowWidth = 920f;
+        public const float RowLineHeight = 50f;
+        public const float RowStartY = -278f;
+        public const float RowWidth = 980f;
     }
 }

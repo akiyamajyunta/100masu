@@ -35,6 +35,21 @@ namespace Masu.UI
         private static readonly Dictionary<int, Font> TimerCache = new();
         private static readonly Dictionary<int, Font> KeyboardCache = new();
 
+        /// <summary>記録画面の日本語（明朝体E 系）。</summary>
+        private static readonly string[] RankingMinchoFontFamilies =
+        {
+            "游明朝体E", "Yu Mincho", "游明朝", "MS Mincho", "ＭＳ 明朝", "MS PMincho", "Hiragino Mincho ProN"
+        };
+
+        /// <summary>記録画面の英数字（Century 系）。</summary>
+        private static readonly string[] RankingLatinFontFamilies =
+        {
+            "Century", "Century Gothic", "Century Schoolbook", "Segoe UI"
+        };
+
+        private static readonly Dictionary<int, Font> RankingMinchoCache = new();
+        private static readonly Dictionary<int, Font> RankingLatinCache = new();
+
         public static Font UiFont => GetForSize(36);
 
         public static Font GetForSize(int fontSize)
@@ -104,6 +119,38 @@ namespace Masu.UI
             text.resizeTextForBestFit = false;
             const string timerGlyphs = "0123456789:. ";
             font.RequestCharactersInTexture(timerGlyphs, fontSize, text.fontStyle);
+        }
+
+        public static void ApplyRankingMincho(Text text, int fontSize, bool bold = false)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!RankingMinchoCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(RankingMinchoFontFamilies, bucket);
+                RankingMinchoCache[bucket] = font;
+            }
+            text.font = font;
+            text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            if (!string.IsNullOrEmpty(text.text))
+                font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
+        }
+
+        public static void ApplyRankingLatin(Text text, int fontSize, bool bold = false)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!RankingLatinCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(RankingLatinFontFamilies, bucket);
+                RankingLatinCache[bucket] = font;
+            }
+            text.font = font;
+            text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            if (!string.IsNullOrEmpty(text.text))
+                font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
         }
 
         private static int BucketSize(int fontSize)
