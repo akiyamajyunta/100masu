@@ -50,6 +50,14 @@ namespace Masu.UI
         private static readonly Dictionary<int, Font> RankingMinchoCache = new();
         private static readonly Dictionary<int, Font> RankingLatinCache = new();
 
+        private static readonly string[] InstructionBannerMinchoFamilies =
+        {
+            "Yu Mincho Demibold", "游明朝 Demibold", "游明朝体E", "Yu Mincho", "游明朝", "MS Mincho", "ＭＳ 明朝",
+            "MS PMincho", "Hiragino Mincho ProN"
+        };
+
+        private static readonly Dictionary<int, Font> InstructionBannerMinchoCache = new();
+
         public static Font UiFont => GetForSize(36);
 
         public static Font GetForSize(int fontSize)
@@ -133,6 +141,23 @@ namespace Masu.UI
             }
             text.font = font;
             text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            if (!string.IsNullOrEmpty(text.text))
+                font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
+        }
+
+        /// <summary>上部説明バナー用。Demibold 明朝を優先し Bold を指定。</summary>
+        public static void ApplyInstructionBannerMincho(Text text, int fontSize)
+        {
+            if (text == null) return;
+            text.fontSize = fontSize;
+            var bucket = BucketSize(fontSize);
+            if (!InstructionBannerMinchoCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(InstructionBannerMinchoFamilies, bucket);
+                InstructionBannerMinchoCache[bucket] = font;
+            }
+            text.font = font;
+            text.fontStyle = FontStyle.Bold;
             if (!string.IsNullOrEmpty(text.text))
                 font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
         }
