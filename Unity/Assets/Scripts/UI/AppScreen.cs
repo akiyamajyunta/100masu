@@ -8,7 +8,8 @@ namespace Masu.UI
         Grid,
         PlayStyle,
         Game,
-        ScoreRanking
+        ScoreRanking,
+        Options
     }
 
     public enum ResultView

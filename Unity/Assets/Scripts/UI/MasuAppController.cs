@@ -21,6 +21,7 @@ namespace Masu.UI
         private CanvasScaler _canvasScaler;
         private Operation _operation = Operation.Add;
         private Operation _pendingOperation = Operation.Add;
+        private GamePlayMode _pendingPlayMode = GamePlayMode.Classic;
         private int _gridSize = 4;
         private GamePlayMode _playMode = GamePlayMode.Classic;
 
@@ -83,6 +84,10 @@ namespace Masu.UI
         private Text[] _playStyleLabels;
         private Text _playStyleStepHint;
         private Text _playStyleHint;
+        private Text[] _optionsLabels;
+        private Text _optionsHint;
+        private int _optionsCursor;
+        private static readonly string[] OptionsMenuItems = { "戻る" };
         private Text[] _rankingOpTabs;
         private Text _rankingGridLabel;
         private Text _rankingGridArrowUp;
@@ -131,7 +136,10 @@ namespace Masu.UI
         private static readonly Operation[] Operations =
             { Operation.Add, Operation.Sub, Operation.Mul, Operation.Div };
 
-        private static readonly string[] TitleMenuItems = { "はじめる", "操作説明", "記録" };
+        private static readonly string[] TitleMenuItems = { "はじめる", "操作説明", "記録", "オプション" };
+        /// <summary>タイトルメニュー: 未選択行の先頭（全角スペースで字下げ）。</summary>
+        private const string TitleMenuPrefixIdle = "　　　";
+        private const string TitleMenuPrefixSelected = "▶　";
         private static readonly string[] PauseMenuItems = { "ゲームに戻る", "メニューに戻る" };
         private static readonly string[] EndConfirmItems = { "はい", "いいえ" };
 
@@ -246,6 +254,7 @@ namespace Masu.UI
                 case AppScreen.Grid: HandleGridInput(); break;
                 case AppScreen.PlayStyle: HandlePlayStyleInput(); break;
                 case AppScreen.ScoreRanking: HandleRankingInput(); break;
+                case AppScreen.Options: HandleOptionsInput(); break;
                 case AppScreen.Game:
                     // セル演出は毎フレーム進める（イントロ・採点中も含む）
                     _gridView.Tick(Time.unscaledDeltaTime);
@@ -326,9 +335,10 @@ namespace Masu.UI
                 "　　　　　最終マスは Enter で確定（空欄は無視）・全マス○でクリア\n" +
                 "誤答 … +10秒　未入力（クラシック採点時）… +10秒\n\n" +
                 "【 メニュー 】\n" +
-                "はじめる … 演算 → マス目 → クラシック/クイック\n" +
+                "はじめる … クラシック/クイック → 演算 → マス目\n" +
                 "記録 … スコア一覧（←→ 演算　↑↓ 盤面）\n" +
-                "Esc … タイトル（マス目選択は演算へ、プレイスタイルはマス目へ）\n" +
+                "オプション … 準備中（戻る）\n" +
+                "Esc … タイトル（演算はプレイスタイルへ、マス目は演算へ）\n" +
                 "操作説明 … Enter または Esc でタイトルへ\n\n" +
                 "【 リザルト 】\n" +
                 "記録確認画面 … Shift で3択メニューへ戻る",
@@ -374,6 +384,16 @@ namespace Masu.UI
 
             BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
+
+            _optionsLabels = BuildMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel,
+                startY: 20f);
+            _optionsHint = MasuUiFactory.CreateText(optionsPanel.transform, "OpHint",
+                "【 オプション 】（準備中）", 24, MasuTheme.CursorGold);
+            _optionsHint.rectTransform.anchorMin = _optionsHint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _optionsHint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _optionsHint.rectTransform.anchoredPosition = new Vector2(0, 200);
+            _optionsHint.rectTransform.sizeDelta = new Vector2(720, 36);
+            _menuPanels[AppScreen.Options] = optionsPanel;
         }
 
         private static Text[] BuildMenuList(
@@ -773,23 +793,27 @@ namespace Masu.UI
 
         private void RefreshMenuHighlights()
         {
-            HighlightList(_titleLabels, _titleMenu, TitleMenuItems);
+            HighlightList(_titleLabels, _titleMenu, TitleMenuItems,
+                TitleMenuPrefixIdle, TitleMenuPrefixSelected);
             HighlightList(_modeLabels, _modeCursor, OperationMenuLabelsJa());
+            if (_modeStepHint != null)
+                _modeStepHint.text = $"【 {_pendingPlayMode.LabelJa()} 】 演算を選ぶ";
             HighlightList(_gridLabels, _gridCursor,
                 Array.ConvertAll(GameConstants.GridSizes, GridConfig.GridLabel));
             if (_gridOpHint != null)
-                _gridOpHint.text = $"【 {_pendingOperation.LabelJa()} 】";
+                _gridOpHint.text =
+                    $"【 {_pendingOperation.LabelJa()} ・ {_pendingPlayMode.LabelJa()} 】";
 
             if (_playStyleLabels != null)
             {
                 HighlightList(_playStyleLabels, _playStyleCursor,
                     new[] { GamePlayMode.Classic.LabelJa(), GamePlayMode.Quick.LabelJa() });
                 if (_playStyleHint != null)
-                {
-                    var pendingMode = _playStyleCursor == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
-                    _playStyleHint.text = GridConfig.BoardLabel(_pendingGridSize, pendingMode);
-                }
+                    _playStyleHint.text = "";
             }
+
+            if (_screen == AppScreen.Options)
+                RefreshOptionsMenuHighlights();
 
             for (var i = 0; i < _rankingOpTabs.Length; i++)
                 _rankingOpTabs[i].color = i == _rankingOpCursor ? MasuTheme.CursorGold : MasuTheme.ResultText;
@@ -814,7 +838,12 @@ namespace Masu.UI
         /// リストのハイライト更新。カーソルが動いた（または ForgetListCursor 済み）ときだけ
         /// 選択項目を横からスライドイン＋点滅させる。
         /// </summary>
-        private void HighlightList(Text[] labels, int cursor, string[] items)
+        private void HighlightList(
+            Text[] labels,
+            int cursor,
+            string[] items,
+            string unselectedPrefix = "  ",
+            string selectedPrefix = "▶ ")
         {
             if (labels == null || labels.Length == 0) return;
             var changed = !_listCursorMemo.TryGetValue(labels, out var prev) || prev != cursor;
@@ -823,7 +852,7 @@ namespace Masu.UI
             for (var i = 0; i < labels.Length; i++)
             {
                 var sel = i == cursor;
-                labels[i].text = (sel ? "▶ " : "  ") + items[i];
+                labels[i].text = (sel ? selectedPrefix : unselectedPrefix) + items[i];
                 if (!sel)
                 {
                     RestoreLabelPose(labels[i]);
@@ -1562,18 +1591,38 @@ namespace Masu.UI
             ShowScreen(AppScreen.Title);
         }
 
+        private void OpenOptionsScreen()
+        {
+            _optionsCursor = 0;
+            ForgetListCursor(_optionsLabels);
+            ShowScreen(AppScreen.Options);
+        }
+
+        private void RefreshOptionsMenuHighlights() =>
+            HighlightList(_optionsLabels, _optionsCursor, OptionsMenuItems);
+
+        private void HandleOptionsInput()
+        {
+            if (Input.GetKeyDown(KeyCode.Escape))
+                ShowScreen(AppScreen.Title);
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                Decide(_optionsLabels[0], () => ShowScreen(AppScreen.Title));
+        }
+
         private void HandleTitleInput()
         {
-            if (Input.GetKeyDown(KeyCode.UpArrow)) { _titleMenu = NavVertical(_titleMenu, -1, 3); RefreshMenuHighlights(); }
-            else if (Input.GetKeyDown(KeyCode.DownArrow)) { _titleMenu = NavVertical(_titleMenu, 1, 3); RefreshMenuHighlights(); }
+            const int titleCount = 4;
+            if (Input.GetKeyDown(KeyCode.UpArrow)) { _titleMenu = NavVertical(_titleMenu, -1, titleCount); RefreshMenuHighlights(); }
+            else if (Input.GetKeyDown(KeyCode.DownArrow)) { _titleMenu = NavVertical(_titleMenu, 1, titleCount); RefreshMenuHighlights(); }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _titleMenu;
                 Decide(_titleLabels[choice], () =>
                 {
-                    if (choice == 0) { _modeCursor = 0; ShowScreen(AppScreen.Mode); }
+                    if (choice == 0) { _playStyleCursor = 0; ShowScreen(AppScreen.PlayStyle); }
                     else if (choice == 1) ShowScreen(AppScreen.Help);
-                    else { _rankingOpCursor = 0; _rankingBoardCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
+                    else if (choice == 2) { _rankingOpCursor = 0; _rankingBoardCursor = 0; ShowScreen(AppScreen.ScoreRanking); }
+                    else OpenOptionsScreen();
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) Application.Quit();
@@ -1599,7 +1648,8 @@ namespace Masu.UI
                     ShowScreen(AppScreen.Grid);
                 });
             }
-            else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
+            else if (Input.GetKeyDown(KeyCode.Escape))
+                ShowScreen(AppScreen.PlayStyle);
         }
 
         private void HandleGridInput()
@@ -1610,11 +1660,12 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _gridCursor;
+                var op = _pendingOperation;
+                var mode = _pendingPlayMode;
                 Decide(_gridLabels[choice], () =>
                 {
                     _pendingGridSize = GameConstants.GridSizes[choice];
-                    _playStyleCursor = 0;
-                    ShowScreen(AppScreen.PlayStyle);
+                    StartCoroutine(GameStartTransition(op, new PlayBoard(_pendingGridSize, mode)));
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Mode);
@@ -1635,14 +1686,16 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _playStyleCursor;
-                var mode = choice == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
-                var op = _pendingOperation;
-                var board = new PlayBoard(_pendingGridSize, mode);
-                Decide(_playStyleLabels[choice], () => StartCoroutine(GameStartTransition(op, board)));
+                Decide(_playStyleLabels[choice], () =>
+                {
+                    _pendingPlayMode = choice == 0 ? GamePlayMode.Classic : GamePlayMode.Quick;
+                    _modeCursor = 0;
+                    ShowScreen(AppScreen.Mode);
+                });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
-                ShowScreen(AppScreen.Grid);
+                ShowScreen(AppScreen.Title);
             }
         }
 
