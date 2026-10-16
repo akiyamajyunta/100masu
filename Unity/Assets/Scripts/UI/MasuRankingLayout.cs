@@ -11,7 +11,13 @@ namespace Masu.UI
         public const int HintFontSize = 24;
 
         public const float RowLineHeight = 50f;
-        public const float RowStartY = -278f;
+        /// <summary>竹の説明帯と記録本体の間隔（設計座標）。</summary>
+        public const float BelowInstructionBanner = 68f;
+        public const float OperationTabsTopY = -104f - BelowInstructionBanner;
+        public const float GridArrowUpTopY = -154f - BelowInstructionBanner;
+        public const float GridRowTopY = -192f - BelowInstructionBanner;
+        public const float GridArrowDownTopY = -230f - BelowInstructionBanner;
+        public const float RowStartY = -278f - BelowInstructionBanner;
         public const float RowWidth = 980f;
     }
 }

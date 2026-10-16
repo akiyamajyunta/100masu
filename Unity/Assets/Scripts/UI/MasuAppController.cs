@@ -94,7 +94,6 @@ namespace Masu.UI
         private GameObject _forestBackdrop;
         private Coroutine _forestHighlightRoutine;
         private Text[] _optionsLabels;
-        private Text _optionsHint;
         private int _optionsCursor;
         private Text[] _optionsVisualLabels;
         private int _optionsVisualCursor;
@@ -427,7 +426,7 @@ namespace Masu.UI
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
 
             _optionsLabels = BuildOverlayMenuList(_menuRoot, "Options", OptionsMenuItems, out var optionsPanel);
-            _optionsHint = CreateOverlaySectionTitle(optionsPanel.transform, "オプション");
+            MasuInstructionBanner.Create(optionsPanel.transform, "オプション");
             _menuPanels[AppScreen.Options] = optionsPanel;
 
             _optionsVisualLabels = BuildOverlayMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
@@ -597,18 +596,6 @@ namespace Masu.UI
             MasuFonts.ApplyRankingLatin(label, fontSize, bold);
         }
 
-        private static Text CreateOverlaySectionTitle(Transform parent, string title)
-        {
-            var hint = MasuUiFactory.CreateText(parent, "SectionTitle", title,
-                MasuOptionsLayout.SectionTitleFontSize, RankingTextWhite);
-            hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            hint.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            hint.rectTransform.anchoredPosition = new Vector2(0, 200);
-            hint.rectTransform.sizeDelta = new Vector2(720, MasuOptionsLayout.SectionTitleFontSize + 12f);
-            StyleRankingJapanese(hint, MasuOptionsLayout.SectionTitleFontSize, bold: true);
-            return hint;
-        }
-
         private static Text[] BuildOverlayMenuList(
             Transform parent,
             string panelName,
@@ -661,18 +648,20 @@ namespace Masu.UI
                 var opRt = _rankingOpTabs[i].rectTransform;
                 opRt.anchorMin = opRt.anchorMax = new Vector2(0.5f, 1f);
                 opRt.pivot = new Vector2(0.5f, 1f);
-                opRt.anchoredPosition = new Vector2(-270f + i * 180f, -104f);
+                opRt.anchoredPosition = new Vector2(-270f + i * 180f, MasuRankingLayout.OperationTabsTopY);
                 opRt.sizeDelta = new Vector2(180f, 48f);
             }
 
             _rankingGridArrowUp = MasuUiFactory.CreateText(rankPanel.transform, "GridUp", "▲",
                 MasuRankingLayout.GridArrowFontSize, RankingTextWhite);
-            MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, -154f, 56f, 48f);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowUp.rectTransform, MasuRankingLayout.GridArrowUpTopY, 56f,
+                48f);
             StyleRankingJapanese(_rankingGridArrowUp, MasuRankingLayout.GridArrowFontSize);
 
             var gridRow = new GameObject("GridRow", typeof(RectTransform));
             gridRow.transform.SetParent(rankPanel.transform, false);
-            MasuUiFactory.PlaceTopCenter(gridRow.GetComponent<RectTransform>(), -192f, 440f, 52f);
+            MasuUiFactory.PlaceTopCenter(gridRow.GetComponent<RectTransform>(), MasuRankingLayout.GridRowTopY, 440f,
+                52f);
 
             _rankingGridSizeLabel = MasuUiFactory.CreateText(gridRow.transform, "GridSize", "4×4",
                 MasuRankingLayout.GridSizeFontSize, RankingTextWhite, TextAnchor.MiddleRight);
@@ -694,7 +683,8 @@ namespace Masu.UI
 
             _rankingGridArrowDown = MasuUiFactory.CreateText(rankPanel.transform, "GridDown", "▼",
                 MasuRankingLayout.GridArrowFontSize, RankingTextWhite);
-            MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, -230f, 56f, 48f);
+            MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, MasuRankingLayout.GridArrowDownTopY,
+                56f, 48f);
             StyleRankingJapanese(_rankingGridArrowDown, MasuRankingLayout.GridArrowFontSize);
 
             _rankingRows = new Text[10];
