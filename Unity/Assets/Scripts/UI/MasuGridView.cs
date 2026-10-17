@@ -50,8 +50,10 @@ namespace Masu.UI
             public float ShakeT, ShakeDur, ShakeAmp;
             public float EnterT, EnterDur;
             public Vector2 EnterFrom;
+            public float InputBeatT;
 
-            public bool Any => FlashT > 0f || PunchT > 0f || MarkPunchT > 0f || ShakeT > 0f || EnterT > 0f;
+            public bool Any => FlashT > 0f || PunchT > 0f || MarkPunchT > 0f || ShakeT > 0f || EnterT > 0f
+                               || InputBeatT > 0f;
 
             public void Tick(float dt)
             {
@@ -60,10 +62,14 @@ namespace Masu.UI
                 MarkPunchT = Mathf.Max(0f, MarkPunchT - dt);
                 ShakeT = Mathf.Max(0f, ShakeT - dt);
                 EnterT = Mathf.Max(0f, EnterT - dt);
+                InputBeatT = Mathf.Max(0f, InputBeatT - dt);
             }
         }
 
         private readonly Dictionary<(int r, int c), CellFx> _fx = new();
+        private readonly HashSet<(int r, int c)> _glamLocked = new();
+        private readonly HashSet<(int r, int c)> _charredCells = new();
+        private MasuDopamineScreenFx _screenFx;
         private readonly List<(int r, int c)> _fxDone = new();
 
         public MasuGridView(Transform parent)
@@ -103,6 +109,8 @@ namespace Masu.UI
                 Object.Destroy(ch.gameObject);
             _cells.Clear();
             _fx.Clear();
+            _glamLocked.Clear();
+            _charredCells.Clear();
 
             var n = grid.GridSize;
             FitCellSize(n);
@@ -292,7 +300,9 @@ namespace Masu.UI
                 if (!grid.IsPlayCell(row, col)) continue;
 
                 var focused = row == state.FocusRow && col == state.FocusCol && !state.Finished;
-                var baseBg = MasuTheme.CellEmpty;
+                var baseBg = _charredCells.Contains((row, col))
+                    ? MasuTheme.DopamineCharredBg
+                    : MasuTheme.CellEmpty;
 
                 if (w.FocusRingOuter != null)
                 {
@@ -304,16 +314,30 @@ namespace Masu.UI
 
                 var showMark = false;
                 var markOk = false;
-                if (scoreMarks != null && scoreMarks.TryGetValue((row, col), out var scoreOk))
+                if (_charredCells.Contains((row, col)))
+                {
+                    showMark = false;
+                }
+                else if (scoreMarks != null && scoreMarks.TryGetValue((row, col), out var scoreOk))
                 {
                     showMark = true;
                     markOk = scoreOk;
+                    if (MasuDopamineFx.Enabled && !scoreOk)
+                        showMark = false;
                 }
                 else if (quickMarks != null && quickMarks.TryGetValue((row, col), out var quickOk))
                 {
-                    showMark = true;
-                    markOk = quickOk;
-                    baseBg = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
+                    if (MasuDopamineFx.Enabled && !quickOk)
+                    {
+                        showMark = false;
+                        baseBg = MasuTheme.DopamineCharredBg;
+                    }
+                    else
+                    {
+                        showMark = true;
+                        markOk = quickOk;
+                        baseBg = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
+                    }
                 }
                 else if (!scoreAnimating && state.PlayMode == GamePlayMode.Quick
                          && state.Cells.TryGetValue((row, col), out var playCell)
@@ -342,7 +366,26 @@ namespace Masu.UI
 
                 w.Label.text = state.PlayCellDisplay(row, col);
                 ApplyFx(w, (row, col), baseBg);
+                if (MasuDopamineFx.Enabled)
+                    ApplyDopamineLabelLook(w, row, col);
             }
+        }
+
+        private void ApplyDopamineLabelLook(CellWidgets w, int row, int col)
+        {
+            if (_charredCells.Contains((row, col)))
+            {
+                w.Label.color = new Color(0.25f, 0.22f, 0.2f, 0.85f);
+                w.Label.fontStyle = FontStyle.Normal;
+                return;
+            }
+
+            if (!_glamLocked.Contains((row, col))) return;
+            w.Label.fontStyle = FontStyle.Bold;
+            var t = Time.unscaledTime;
+            var rainbow = Color.HSVToRGB((t * 1.6f) % 1f, 0.8f, 1f);
+            w.Label.color = Color.Lerp(MasuTheme.CursorGold, rainbow, 0.4f + 0.3f * Mathf.Sin(t * 10f));
+            w.Label.transform.localScale = Vector3.one * 1.08f;
         }
 
         // ------------------------------------------------------------------
@@ -369,7 +412,22 @@ namespace Masu.UI
         public void ClearFx()
         {
             _fx.Clear();
+            _glamLocked.Clear();
+            _charredCells.Clear();
             foreach (var w in _cells.Values) ResetWidgetPose(w);
+        }
+
+        public void SetScreenFx(MasuDopamineScreenFx screenFx) => _screenFx = screenFx;
+
+        public void SetGlamLock(int row, int col) => _glamLocked.Add((row, col));
+
+        public void SetCharred(int row, int col) => _charredCells.Add((row, col));
+
+        public Vector2 GetCellLocalIn(RectTransform parent, int row, int col)
+        {
+            if (!_cells.TryGetValue((row, col), out var w)) return Vector2.zero;
+            var world = w.Bg.rectTransform.TransformPoint(Vector3.zero);
+            return parent.InverseTransformPoint(world);
         }
 
         private static void ResetWidgetPose(CellWidgets w)
@@ -438,6 +496,15 @@ namespace Masu.UI
                 offset += fx.EnterFrom * (1f - EaseOutBack(p));
                 labelAlpha = Mathf.Clamp01(p * 2.5f);
             }
+
+            if (fx.InputBeatT > 0f)
+            {
+                var beat = 1f + Mathf.Sin((0.35f - fx.InputBeatT) * 48f) * 0.14f;
+                labelScale *= beat;
+            }
+
+            if (_charredCells.Contains(key))
+                bg = Color.Lerp(bg, MasuTheme.DopamineCharredEdge, 0.55f);
 
             w.Bg.color = bg;
             w.Label.transform.localScale = Vector3.one * Mathf.Max(0.01f, labelScale);
@@ -524,6 +591,12 @@ namespace Masu.UI
         /// <summary>採点: ○× をスタンプ。正解は緑フラッシュ、不正解は赤フラッシュ + 揺れ。</summary>
         public void PlayGradeStamp(int row, int col, bool correct, float duration)
         {
+            if (MasuDopamineFx.Enabled)
+            {
+                PlayDopamineGradeStamp(row, col, correct, duration);
+                return;
+            }
+
             PlayMarkPunch(row, col, 1.7f, duration);
             if (correct)
                 PlayFlash(row, col, MasuTheme.CorrectMark, duration, 0.45f);
@@ -531,6 +604,67 @@ namespace Masu.UI
             {
                 PlayFlash(row, col, MasuTheme.WrongMark, duration, 0.6f);
                 PlayShake(row, col, Mathf.Max(2.5f, _cellSize * 0.07f), duration * 0.9f);
+            }
+        }
+
+        public void PlayDopamineHeaderSlam(int row, int col, float duration)
+        {
+            var fx = FxFor(row, col);
+            var dist = _cellSize * 1.15f;
+            fx.EnterFrom = col == 0 ? new Vector2(-dist, 0f) : new Vector2(0f, dist);
+            fx.EnterDur = fx.EnterT = Mathf.Max(0.01f, duration * 0.9f);
+            PlayPunch(row, col, 2.15f, duration);
+            PlayFlash(row, col, Color.white, duration, 0.9f);
+            PlayShake(row, col, Mathf.Max(3f, _cellSize * 0.1f), duration * 0.75f);
+            MasuDopamineFx.OnIntroPanelSlam();
+        }
+
+        public void PlayDopamineInputPulse(int row, int col)
+        {
+            var fx = FxFor(row, col);
+            fx.InputBeatT = 0.38f;
+            PlayPunch(row, col, 1.45f, 0.24f);
+            PlayFlash(row, col, MasuTheme.CursorGold, 0.28f, 0.65f);
+            MasuDopamineFx.OnDigitKey();
+        }
+
+        public void PlayDopamineLockGlam(int row, int col)
+        {
+            SetGlamLock(row, col);
+            PlayPunch(row, col, 1.55f, 0.32f);
+            PlayFlash(row, col, MasuTheme.CursorGold, 0.35f, 0.75f);
+            MasuDopamineFx.OnCellLockGlam();
+        }
+
+        public void PlayDopamineGradeStamp(int row, int col, bool correct, float duration)
+        {
+            if (correct)
+            {
+                PlayMarkPunch(row, col, 2.4f, duration);
+                PlayFlash(row, col, MasuTheme.CorrectMark, duration, 0.85f);
+                PlayFlash(row, col, Color.white, duration * 0.7f, 0.5f);
+                if (_screenFx != null)
+                {
+                    var pos = GetCellLocalIn(_screenFx.transform as RectTransform, row, col);
+                    _screenFx.BurstSparks(pos, 28, 220f, fireworkColors: true);
+                    _screenFx.Shake(0.22f, 10f);
+                    _screenFx.FlashScreen(new Color(1f, 0.95f, 0.7f), 0.35f);
+                }
+                MasuDopamineFx.OnScoreCorrectFirework();
+            }
+            else
+            {
+                SetCharred(row, col);
+                PlayFlash(row, col, Color.black, duration * 1.2f, 0.95f);
+                PlayShake(row, col, Mathf.Max(4f, _cellSize * 0.12f), duration);
+                if (_screenFx != null)
+                {
+                    var pos = GetCellLocalIn(_screenFx.transform as RectTransform, row, col);
+                    _screenFx.BurstSparks(pos, 14, 140f, fireworkColors: false);
+                    _screenFx.Shake(0.35f, 16f);
+                    _screenFx.FlashScreen(new Color(0.15f, 0.1f, 0.2f), 0.45f);
+                }
+                MasuDopamineFx.OnScoreWrongCharred();
             }
         }
     }

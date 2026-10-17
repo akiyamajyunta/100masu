@@ -127,6 +127,7 @@ namespace Masu.UI
         private Text _sidebarTime;
         private Text _guideText;
         private Text _readyGoLabel;
+        private MasuDopamineScreenFx _dopamineScreenFx;
         private Text _resultTitle;
         private Text _resultSummary;
         private Text[] _resultMenuLabels;
@@ -728,6 +729,20 @@ namespace Masu.UI
             }
 
             BuildGameOverlayGif(bg != null ? 1 : 0);
+            BuildDopamineScreenFx(bg != null ? 2 : 1);
+        }
+
+        private void BuildDopamineScreenFx(int siblingIndex)
+        {
+            var go = new GameObject("DopamineScreenFx", typeof(RectTransform), typeof(MasuDopamineScreenFx));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            var rt = go.GetComponent<RectTransform>();
+            MasuUiFactory.Stretch(rt);
+            _dopamineScreenFx = go.GetComponent<MasuDopamineScreenFx>();
+            _dopamineScreenFx.Initialize(_gameRoot as RectTransform);
+            _dopamineScreenFx.CaptureShakeBase();
+            _gridView?.SetScreenFx(_dopamineScreenFx);
         }
 
         /// <summary>背景の上・UI枠の下に GIF オーバーレイ（花びら等）。</summary>
@@ -770,6 +785,8 @@ namespace Masu.UI
             rt.anchorMax = new Vector2(1f - gridPad, 1f - gridPad);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             _gridView = new MasuGridView(gridHost.transform);
+            if (_dopamineScreenFx != null)
+                _gridView.SetScreenFx(_dopamineScreenFx);
 
             _guideText = MasuUiFactory.CreateText(playInner, "Guide", "", 16, MasuTheme.TextDim, TextAnchor.LowerCenter);
             _guideText.rectTransform.anchorMin = new Vector2(0.5f, 0f);
@@ -1717,6 +1734,7 @@ namespace Masu.UI
             StartCoroutine(RebuildGridAfterLayout(layoutGen));
             _state.Reset(startClock: false);
             _gridView.ClearFx();
+            _dopamineScreenFx?.CaptureShakeBase();
             RefreshGrid();
             UpdateSidebar();
             UpdateEndGuide();
@@ -1747,20 +1765,39 @@ namespace Masu.UI
             try
             {
                 var cells = _state.Grid.HeaderRevealCells();
-                var stagger = Mathf.Clamp(IntroHeaderBudgetSec / Mathf.Max(1, cells.Count), 0.03f, 0.12f);
+                var dopamine = MasuDopamineFx.Enabled;
+                var stagger = dopamine
+                    ? Mathf.Clamp(IntroHeaderBudgetSec / Mathf.Max(1, cells.Count), 0.02f, 0.07f)
+                    : Mathf.Clamp(IntroHeaderBudgetSec / Mathf.Max(1, cells.Count), 0.03f, 0.12f);
 
                 foreach (var (r, c) in cells)
                 {
                     if (gen != _introGen) yield break;
                     _revealedHeaders.Add((r, c));
-                    _gridView.PlayHeaderEnter(r, c, IntroHeaderEnterSec);
+                    if (dopamine)
+                    {
+                        _gridView.PlayDopamineHeaderSlam(r, c, IntroHeaderEnterSec * 1.15f);
+                        _dopamineScreenFx?.Shake(0.12f, 8f);
+                    }
+                    else
+                        _gridView.PlayHeaderEnter(r, c, IntroHeaderEnterSec);
                     yield return new WaitForSecondsRealtime(stagger);
                 }
 
-                yield return new WaitForSecondsRealtime(0.18f);
+                yield return new WaitForSecondsRealtime(dopamine ? 0.08f : 0.18f);
                 if (gen != _introGen) yield break;
                 _gridView.PlayOperatorPunch();
-                yield return PlayBoardWave(MasuTheme.CursorGold, 0.35f, 0.28f, 0.022f, punchMarks: false);
+                if (dopamine)
+                {
+                    _dopamineScreenFx?.Shake(0.42f, 22f);
+                    _dopamineScreenFx?.FlashScreen(Color.white, 0.55f);
+                    var center = _gridView.GetCellLocalIn(_dopamineScreenFx.transform as RectTransform, 0, 0);
+                    _dopamineScreenFx?.BurstSparks(center, 36, 280f, fireworkColors: false);
+                    MasuDopamineFx.OnIntroImpactBurst();
+                }
+
+                yield return PlayBoardWave(MasuTheme.CursorGold, dopamine ? 0.55f : 0.35f, dopamine ? 0.38f : 0.28f,
+                    dopamine ? 0.018f : 0.022f, punchMarks: false);
                 if (gen != _introGen) yield break;
 
                 // READY → GO! の合図。GO! と同時にタイマー計測を開始する。
@@ -2693,7 +2730,15 @@ namespace Masu.UI
             ClearQuickMarkOnEdit();
             _state.HandleChar(ch);
             if (_state.Buffer != before)
-                _gridView.PlayInputPunch(_state.FocusRow, _state.FocusCol);
+            {
+                if (MasuDopamineFx.Enabled)
+                {
+                    _gridView.PlayDopamineInputPulse(_state.FocusRow, _state.FocusCol);
+                    _dopamineScreenFx?.FlashScreen(new Color(1f, 0.92f, 0.55f), 0.28f);
+                }
+                else
+                    _gridView.PlayInputPunch(_state.FocusRow, _state.FocusCol);
+            }
             else
                 _gridView.PlayRejectShake(_state.FocusRow, _state.FocusCol);
             RefreshGrid();
@@ -2729,7 +2774,14 @@ namespace Masu.UI
             var prevCol = _state.FocusCol;
             _state.MoveFocus(dr, dc);
             if (_state.FocusRow != prevRow || _state.FocusCol != prevCol)
-                _gridView.PlayFocusMoved(_state.FocusRow, _state.FocusCol);
+            {
+                if (MasuDopamineFx.Enabled && _state.Grid.IsPlayCell(prevRow, prevCol)
+                    && _state.Cells.TryGetValue((prevRow, prevCol), out var left)
+                    && !string.IsNullOrWhiteSpace(left.Value))
+                    _gridView.PlayDopamineLockGlam(prevRow, prevCol);
+                else
+                    _gridView.PlayFocusMoved(_state.FocusRow, _state.FocusCol);
+            }
             ApplyQuickGradeFeedback();
             RefreshGrid();
             UpdateSidebar();

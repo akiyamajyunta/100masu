@@ -33,6 +33,8 @@ namespace Masu.UI
         public static readonly Color GridCellText = Hex("#FFFFFF");
         public static readonly Color CorrectMark = Hex("#6ecf8a");
         public static readonly Color WrongMark = Hex("#e86a6a");
+        public static readonly Color DopamineCharredBg = Hex("#0d0d0d");
+        public static readonly Color DopamineCharredEdge = Hex("#2a1810");
         public static readonly Color FocusRing = Hex("#e6c85a");
         public static readonly Color FocusRingBright = Hex("#5cff9a");
         public static readonly Color FocusRingDim = Hex("#2eb86a");
