@@ -596,21 +596,11 @@ namespace Masu.UI
 
         private static readonly Color RankingTextWhite = Color.white;
 
-        private static void StyleRankingJapanese(Text label, int fontSize, bool bold = false)
-        {
-            if (label == null) return;
-            label.color = RankingTextWhite;
-            MasuUiFactory.ApplyBlackOutline(label, 2f);
-            MasuFonts.ApplyRankingMincho(label, fontSize, bold);
-        }
+        private static void StyleRankingJapanese(Text label, int fontSize, bool bold = false) =>
+            MasuUiFactory.ApplyRankingScreenJapanese(label, fontSize, bold);
 
-        private static void StyleRankingLatin(Text label, int fontSize, bool bold = false)
-        {
-            if (label == null) return;
-            label.color = RankingTextWhite;
-            MasuUiFactory.ApplyBlackOutline(label, 2f);
-            MasuFonts.ApplyRankingLatin(label, fontSize, bold);
-        }
+        private static void StyleRankingLatin(Text label, int fontSize, bool bold = false) =>
+            MasuUiFactory.ApplyRankingScreenLatin(label, fontSize, bold);
 
         private static Text[] BuildOverlayMenuList(
             Transform parent,
@@ -824,42 +814,43 @@ namespace Masu.UI
             MasuUiFactory.PlaceTopCenter(_sidebarMode.rectTransform, -12f, 230f, 48f);
 
             _sidebarGrid = MasuUiFactory.CreateText(scoreInner, "GridSize", "", MasuScoreSidebarLayout.GridFontSize,
-                MasuTheme.Text, TextAnchor.UpperCenter);
-            MasuUiFactory.PlaceTopCenter(_sidebarGrid.rectTransform, -58f, 230f, 32f);
+                MasuUiFactory.RankingScreenTextColor, TextAnchor.UpperCenter);
+            StyleRankingJapanese(_sidebarGrid, MasuScoreSidebarLayout.GridFontSize);
+            MasuUiFactory.PlaceTopCenter(_sidebarGrid.rectTransform, -58f, 240f, 40f);
 
-            var rowY = -96f;
+            var rowY = -100f;
             _sidebarHigh = MasuUiFactory.CreateSidebarStatRow(scoreInner, "High", "最高得点", rowY, MasuTheme.Text,
                 MasuScoreSidebarLayout.StatValueFontSize);
-            rowY -= 50f;
+            rowY -= 54f;
             _sidebarSession = MasuUiFactory.CreateSidebarStatRow(scoreInner, "Session", "得点", rowY,
-                MasuTheme.CursorGold, MasuScoreSidebarLayout.StatValueFontSize);
-            rowY -= 50f;
+                MasuTheme.Text, MasuScoreSidebarLayout.StatValueFontSize);
+            rowY -= 54f;
             _sidebarCorrect = MasuUiFactory.CreateSidebarStatRow(scoreInner, "Correct", "正解", rowY, MasuTheme.Text,
                 MasuScoreSidebarLayout.CorrectValueFontSize);
-            rowY -= 44f;
+            rowY -= 48f;
 
             MasuUiFactory.CreateSidebarStarsRow(scoreInner, "Answer", "答力 :", rowY, out _sidebarAnswerStars);
-            rowY -= 40f;
+            rowY -= 44f;
             MasuUiFactory.CreateSidebarStarsRow(scoreInner, "Skill", "技能 :", rowY, out _sidebarSkillStars);
 
             var pad = MasuScoreSidebarLayout.ContentPadX;
             var timerLabel = MasuUiFactory.CreateText(scoreInner, "TimerLabel", "時間",
-                MasuScoreSidebarLayout.StatLabelFontSize, MasuTheme.Text, TextAnchor.LowerLeft);
+                MasuScoreSidebarLayout.StatLabelFontSize, MasuUiFactory.RankingScreenTextColor, TextAnchor.LowerLeft);
+            StyleRankingJapanese(timerLabel, MasuScoreSidebarLayout.StatLabelFontSize);
             var tlRt = timerLabel.rectTransform;
             tlRt.anchorMin = tlRt.anchorMax = new Vector2(0, 0);
             tlRt.pivot = new Vector2(0, 0);
             tlRt.anchoredPosition = new Vector2(pad, 16f);
-            tlRt.sizeDelta = new Vector2(120, 18);
+            tlRt.sizeDelta = new Vector2(140, 28);
 
             _sidebarTime = MasuUiFactory.CreateText(scoreInner, "Time", "0:00.00", MasuScoreSidebarLayout.TimerFontSize,
-                MasuTheme.GaugeTimer, TextAnchor.LowerRight);
-            _sidebarTime.fontStyle = FontStyle.Bold;
-            MasuFonts.ApplyTimer(_sidebarTime, MasuScoreSidebarLayout.TimerFontSize);
+                MasuUiFactory.RankingScreenTextColor, TextAnchor.LowerRight);
+            StyleRankingLatin(_sidebarTime, MasuScoreSidebarLayout.TimerFontSize, bold: true);
             var timeRt = _sidebarTime.rectTransform;
             timeRt.anchorMin = timeRt.anchorMax = new Vector2(1, 0);
             timeRt.pivot = new Vector2(1, 0);
-            timeRt.anchoredPosition = new Vector2(-pad, 16f);
-            timeRt.sizeDelta = new Vector2(200, 36);
+            timeRt.anchoredPosition = new Vector2(-pad, 14f);
+            timeRt.sizeDelta = new Vector2(220, 44);
         }
 
         private static readonly string[] ResultMenuItems =

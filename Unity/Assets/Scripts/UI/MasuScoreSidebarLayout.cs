@@ -17,12 +17,12 @@ namespace Masu.UI
         public const float ContentPadX = 12f;
 
         public const int ModeFontSize = 44;
-        public const int GridFontSize = 24;
-        public const int StatLabelFontSize = 20;
-        public const int StatValueFontSize = 22;
-        public const int CorrectValueFontSize = 26;
-        public const int StarFontSize = 16;
-        public const int TimerFontSize = 32;
+        public const int GridFontSize = 28;
+        public const int StatLabelFontSize = 24;
+        public const int StatValueFontSize = 26;
+        public const int CorrectValueFontSize = 30;
+        public const int StarFontSize = 20;
+        public const int TimerFontSize = 38;
         public const float TimerBarHeight = 12f;
     }
 }

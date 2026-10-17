@@ -200,9 +200,10 @@ namespace Masu.UI
                 innerGo.SetActive(false);
             }
 
-            var label = MasuUiFactory.CreateText(go.transform, "Label", initial,
-                isHeader ? _headerFontSize : _cellFontSize,
-                MasuTheme.Text, TextAnchor.MiddleCenter);
+            var labelSize = isHeader ? _headerFontSize : _cellFontSize;
+            var label = MasuUiFactory.CreateText(go.transform, "Label", initial, labelSize,
+                MasuTheme.GridCellText, TextAnchor.MiddleCenter);
+            MasuFonts.ApplyGridCell(label, labelSize);
             MasuUiFactory.Stretch(label.rectTransform, 2, 2, 2, 2);
 
             var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", _markFontSize, MasuTheme.CorrectMark,
@@ -375,9 +376,7 @@ namespace Masu.UI
         {
             w.Label.transform.localScale = Vector3.one;
             w.Label.rectTransform.anchoredPosition = Vector2.zero;
-            var lc = w.Label.color;
-            lc.a = 1f;
-            w.Label.color = lc;
+            w.Label.color = MasuTheme.GridCellText;
             w.Mark.transform.localScale = Vector3.one;
         }
 
@@ -443,7 +442,7 @@ namespace Masu.UI
             w.Bg.color = bg;
             w.Label.transform.localScale = Vector3.one * Mathf.Max(0.01f, labelScale);
             w.Label.rectTransform.anchoredPosition = offset;
-            var lc = w.Label.color;
+            var lc = MasuTheme.GridCellText;
             lc.a = labelAlpha;
             w.Label.color = lc;
             w.Mark.transform.localScale = Vector3.one * Mathf.Max(0.01f, markScale);

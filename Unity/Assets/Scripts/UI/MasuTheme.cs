@@ -28,7 +28,9 @@ namespace Masu.UI
         public static readonly Color CellBorder = Hex("#3a4558");
         public static readonly Color HeaderSlot = Hex("#2a3548");
         public static readonly Color HeaderNum = Hex("#3d4a62");
-        public static readonly Color PlusBg = Hex("#ccac4e");
+        public static readonly Color PlusBg = Hex("#F4B183");
+        /// <summary>盤面セルの数字・四則記号。</summary>
+        public static readonly Color GridCellText = Hex("#FFFFFF");
         public static readonly Color CorrectMark = Hex("#6ecf8a");
         public static readonly Color WrongMark = Hex("#e86a6a");
         public static readonly Color FocusRing = Hex("#e6c85a");

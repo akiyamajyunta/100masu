@@ -68,6 +68,25 @@ namespace Masu.UI
             outline.useGraphicAlpha = true;
         }
 
+        /// <summary>記録画面と同じテキスト（白・黒縁・明朝／Century）。</summary>
+        public static readonly Color RankingScreenTextColor = Color.white;
+
+        public static void ApplyRankingScreenJapanese(Text label, int fontSize, bool bold = false)
+        {
+            if (label == null) return;
+            label.color = RankingScreenTextColor;
+            ApplyBlackOutline(label, 2f);
+            MasuFonts.ApplyRankingMincho(label, fontSize, bold);
+        }
+
+        public static void ApplyRankingScreenLatin(Text label, int fontSize, bool bold = false)
+        {
+            if (label == null) return;
+            label.color = RankingScreenTextColor;
+            ApplyBlackOutline(label, 2f);
+            MasuFonts.ApplyRankingLatin(label, fontSize, bold);
+        }
+
         public static InputField CreateInputField(Transform parent, string name)
         {
             var root = new GameObject(name, typeof(RectTransform), typeof(Image));
@@ -213,21 +232,22 @@ namespace Masu.UI
         {
             var pad = MasuScoreSidebarLayout.ContentPadX;
             var labelGo = CreateText(parent, name + "Label", label, MasuScoreSidebarLayout.StatLabelFontSize,
-                MasuTheme.Text, TextAnchor.UpperLeft);
+                RankingScreenTextColor, TextAnchor.UpperLeft);
+            ApplyRankingScreenJapanese(labelGo, MasuScoreSidebarLayout.StatLabelFontSize);
             var labelRt = labelGo.rectTransform;
             labelRt.anchorMin = labelRt.anchorMax = new Vector2(0, 1);
             labelRt.pivot = new Vector2(0, 1);
             labelRt.anchoredPosition = new Vector2(pad, topY);
-            labelRt.sizeDelta = new Vector2(220, 24);
+            labelRt.sizeDelta = new Vector2(220, 28);
 
-            var value = CreateText(parent, name + "Value", "", valueFontSize, valueColor, TextAnchor.UpperRight);
-            if (valueBold) value.fontStyle = FontStyle.Bold;
-            MasuFonts.Apply(value, valueFontSize);
+            var value = CreateText(parent, name + "Value", "", valueFontSize, RankingScreenTextColor,
+                TextAnchor.UpperRight);
+            ApplyRankingScreenLatin(value, valueFontSize, valueBold);
             var valueRt = value.rectTransform;
             valueRt.anchorMin = valueRt.anchorMax = new Vector2(1, 1);
             valueRt.pivot = new Vector2(1, 1);
-            valueRt.anchoredPosition = new Vector2(-pad, topY - 26);
-            valueRt.sizeDelta = new Vector2(220, 26);
+            valueRt.anchoredPosition = new Vector2(-pad, topY - 30);
+            valueRt.sizeDelta = new Vector2(220, 32);
             return value;
         }
 
@@ -240,11 +260,13 @@ namespace Masu.UI
         {
             var pad = MasuScoreSidebarLayout.ContentPadX;
             var labelGo = CreateText(parent, name + "Label", label, MasuScoreSidebarLayout.StatLabelFontSize,
-                MasuTheme.Text, TextAnchor.UpperLeft);
-            PlaceTopLeft(labelGo.rectTransform, pad, topY, 220, 24);
-            stars = CreateText(parent, name + "Stars", "", MasuScoreSidebarLayout.StarFontSize, MasuTheme.Text,
-                TextAnchor.UpperRight);
-            PlaceTopRight(stars.rectTransform, -pad, topY - 26, 220, 22);
+                RankingScreenTextColor, TextAnchor.UpperLeft);
+            ApplyRankingScreenJapanese(labelGo, MasuScoreSidebarLayout.StatLabelFontSize);
+            PlaceTopLeft(labelGo.rectTransform, pad, topY, 220, 28);
+            stars = CreateText(parent, name + "Stars", "", MasuScoreSidebarLayout.StarFontSize,
+                RankingScreenTextColor, TextAnchor.UpperRight);
+            ApplyRankingScreenLatin(stars, MasuScoreSidebarLayout.StarFontSize);
+            PlaceTopRight(stars.rectTransform, -pad, topY - 30, 220, 28);
             return stars;
         }
 

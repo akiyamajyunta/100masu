@@ -178,6 +178,12 @@ namespace Masu.UI
                 font.RequestCharactersInTexture(text.text, fontSize, text.fontStyle);
         }
 
+        /// <summary>プレイ中盤面（四則記号・見出し数字・回答）。Century 系。</summary>
+        public static void ApplyGridCell(Text text, int fontSize)
+        {
+            ApplyRankingLatin(text, fontSize);
+        }
+
         private static int BucketSize(int fontSize)
         {
             var s = Mathf.Clamp(fontSize, 10, 128);
