@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -95,6 +96,22 @@ namespace Masu.UI
             _highlight.anchoredPosition = new Vector2(_highlight.anchoredPosition.x, y);
 
         public float HighlightY => _highlight.anchoredPosition.y;
+
+        public void CollectEntranceSlideTargets(List<RectTransform> targets)
+        {
+            if (targets == null || Panel == null) return;
+            var root = Panel.transform;
+            if (root.Find("SelectBar") is RectTransform bar)
+                targets.Add(bar);
+            for (var i = 0; i < _titleLabels.Length; i++)
+            {
+                if (_titleLabels[i] != null)
+                    targets.Add(_titleLabels[i].rectTransform);
+                var sub = root.Find($"Sub{i}");
+                if (sub is RectTransform subRt)
+                    targets.Add(subRt);
+            }
+        }
     }
 
     /// <summary>2枚目モック基準のレイアウト（1280×960 設計座標）。</summary>

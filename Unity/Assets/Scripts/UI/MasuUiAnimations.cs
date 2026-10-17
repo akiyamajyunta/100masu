@@ -76,6 +76,61 @@ namespace Masu.UI
             SetAlpha(g, to);
         }
 
+        /// <summary>左外から basePos へスライド（タイトル赤帯と同系）。</summary>
+        public static IEnumerator SlideInFromLeft(RectTransform rt, Vector2 basePos, float fromOffsetX, float duration)
+        {
+            var elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var e = EaseOutCubic(Mathf.Clamp01(elapsed / duration));
+                rt.anchoredPosition = new Vector2(basePos.x - fromOffsetX * (1f - e), basePos.y);
+                yield return null;
+            }
+            rt.anchoredPosition = basePos;
+        }
+
+        /// <summary>スライドインしながら子 Graphic を 0→元の alpha へ（表示の二重化を防ぐ）。</summary>
+        public static IEnumerator SlideInFromLeftFade(
+            RectTransform rt,
+            Vector2 basePos,
+            float fromOffsetX,
+            float duration,
+            Graphic[] graphics,
+            float[] baseAlphas)
+        {
+            if (graphics == null || baseAlphas == null || graphics.Length == 0)
+            {
+                yield return SlideInFromLeft(rt, basePos, fromOffsetX, duration);
+                yield break;
+            }
+
+            rt.anchoredPosition = new Vector2(basePos.x - fromOffsetX, basePos.y);
+            for (var i = 0; i < graphics.Length; i++)
+                SetAlpha(graphics[i], 0f);
+
+            var elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var e = EaseOutCubic(Mathf.Clamp01(elapsed / duration));
+                rt.anchoredPosition = new Vector2(basePos.x - fromOffsetX * (1f - e), basePos.y);
+                for (var i = 0; i < graphics.Length; i++)
+                {
+                    if (graphics[i] == null) continue;
+                    SetAlpha(graphics[i], baseAlphas[i] * e);
+                }
+                yield return null;
+            }
+
+            rt.anchoredPosition = basePos;
+            for (var i = 0; i < graphics.Length; i++)
+            {
+                if (graphics[i] == null) continue;
+                SetAlpha(graphics[i], baseAlphas[i]);
+            }
+        }
+
         public static IEnumerator SlideY(RectTransform rt, float fromY, float toY, float duration, Func<float, float> ease)
         {
             var elapsed = 0f;

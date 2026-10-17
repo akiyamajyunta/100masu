@@ -93,6 +93,15 @@ namespace Masu.UI
         private MasuForestSelectMenu _gridForestMenu;
         private GameObject _forestBackdrop;
         private Coroutine _forestHighlightRoutine;
+        private Coroutine _screenEntranceRoutine;
+        private readonly Dictionary<RectTransform, Vector2> _slideBaseAnchored = new();
+        private readonly Dictionary<Graphic, float> _entranceBaseAlpha = new();
+        private readonly List<RectTransform> _entranceTargets = new();
+        private RectTransform _entranceBanner;
+        private const float ScreenEntranceSlideOffset = 720f;
+        private const float ScreenEntranceBannerDuration = 0.5f;
+        private const float ScreenEntranceItemDuration = 0.45f;
+        private const float ScreenEntranceStagger = 0.09f;
         private Text[] _optionsLabels;
         private int _optionsCursor;
         private Text[] _optionsVisualLabels;
@@ -416,7 +425,7 @@ namespace Masu.UI
             for (var i = 0; i < gridRows.Length; i++)
             {
                 var size = GameConstants.GridSizes[i];
-                gridRows[i] = new ForestMenuRow(GridConfig.GridLabel(size), $"プレイ {size}×{size} マス");
+                gridRows[i] = new ForestMenuRow(GridConfig.GridLabel(size));
             }
             _gridForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Grid", gridRows,
                 ForestMenuLayout.ForRowCount(gridRows.Length), instruction: "マス目を選択してください");
@@ -494,7 +503,7 @@ namespace Masu.UI
             _forestBackdrop.SetActive(false);
         }
 
-        /// <summary>森写真の上に透過スクリムを1枚、画面全体に拡大して重ねる。</summary>
+        /// <summary>森写真 → スクリム → 星エフェクトの順で全面に重ねる。</summary>
         private void AddForestPhotoAndScrim(Transform parent, out Image photo, out Image scrim)
         {
             photo = CreateTitleArtImage(parent, "Photo", "title_photo");
@@ -508,6 +517,12 @@ namespace Masu.UI
             {
                 scrim.type = Image.Type.Simple;
                 MasuUiFactory.StretchFullBleed(scrim.rectTransform, BackdropBleedPixels);
+            }
+            var scrimEffect = CreateTitleArtImage(parent, "ScrimEffect", "title_scrim_effect");
+            if (scrimEffect != null)
+            {
+                scrimEffect.type = Image.Type.Simple;
+                MasuUiFactory.StretchFullBleed(scrimEffect.rectTransform, BackdropBleedPixels);
             }
         }
 
@@ -951,6 +966,8 @@ namespace Masu.UI
             if (screen != AppScreen.Game)
                 DismissGameOverlays();
 
+            StopScreenEntrance();
+
             if (_screen == AppScreen.Title && screen != AppScreen.Title)
                 StopTitleOpening();
 
@@ -963,7 +980,6 @@ namespace Masu.UI
                 _titleBackdrop.SetActive(screen == AppScreen.Title);
             if (_forestBackdrop != null)
                 _forestBackdrop.SetActive(IsForestMenuScreen(screen));
-            // 画面に入った直後は、カーソルが変わっていなくても選択項目をスライドインさせる
             ForgetListCursor(LabelsForScreen(screen));
             if (IsForestMenuScreen(screen))
                 SyncForestMenuHighlight(screen);
@@ -972,9 +988,200 @@ namespace Masu.UI
                 HideTitleMenuItems();
                 StartTitleOpening();
             }
+            else if (UsesScreenEntrance(screen))
+            {
+                PrepareScreenEntranceState(screen);
+                _screenEntranceRoutine = StartCoroutine(PlayScreenEntrance(screen));
+            }
             else
             {
                 RefreshMenuHighlights();
+            }
+        }
+
+        private static bool UsesScreenEntrance(AppScreen screen) =>
+            IsForestMenuScreen(screen)
+            || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
+            || screen == AppScreen.OptionsEffects;
+
+        private void StopScreenEntrance()
+        {
+            if (_screenEntranceRoutine != null)
+            {
+                StopCoroutine(_screenEntranceRoutine);
+                _screenEntranceRoutine = null;
+            }
+            SnapScreenEntranceTransforms();
+            RestoreEntranceGraphics();
+            _menuBusy = false;
+        }
+
+        private void SnapScreenEntranceTransforms()
+        {
+            foreach (var kv in _slideBaseAnchored)
+            {
+                if (kv.Key != null)
+                    kv.Key.anchoredPosition = kv.Value;
+            }
+        }
+
+        private void RestoreEntranceGraphics()
+        {
+            foreach (var kv in _entranceBaseAlpha)
+            {
+                if (kv.Key != null)
+                    MasuUiAnimations.SetAlpha(kv.Key, kv.Value);
+            }
+            _entranceBaseAlpha.Clear();
+        }
+
+        private void PrepareScreenEntranceState(AppScreen screen)
+        {
+            _entranceTargets.Clear();
+            _entranceBanner = null;
+            _entranceBaseAlpha.Clear();
+            if (!_menuPanels.TryGetValue(screen, out var panel) || panel == null)
+                return;
+
+            _entranceBanner = panel.transform.Find("InstructionBanner") as RectTransform;
+            CollectEntranceMenuTargets(screen, _entranceTargets);
+
+            if (_entranceBanner != null)
+            {
+                SetSlideStart(_entranceBanner);
+                CacheEntranceGraphics(_entranceBanner);
+            }
+
+            foreach (var rt in _entranceTargets)
+            {
+                if (rt == null) continue;
+                SetSlideStart(rt);
+                CacheEntranceGraphics(rt);
+            }
+        }
+
+        private void CacheEntranceGraphics(RectTransform rt)
+        {
+            foreach (var g in rt.GetComponentsInChildren<Graphic>(true))
+            {
+                if (g == null || _entranceBaseAlpha.ContainsKey(g)) continue;
+                _entranceBaseAlpha[g] = g.color.a;
+                MasuUiAnimations.SetAlpha(g, 0f);
+            }
+        }
+
+        private (Graphic[] graphics, float[] alphas) EntranceGraphicsFor(RectTransform rt)
+        {
+            if (rt == null) return (Array.Empty<Graphic>(), Array.Empty<float>());
+            var gfx = rt.GetComponentsInChildren<Graphic>(true);
+            var alphas = new float[gfx.Length];
+            for (var i = 0; i < gfx.Length; i++)
+                alphas[i] = _entranceBaseAlpha.TryGetValue(gfx[i], out var a) ? a : 1f;
+            return (gfx, alphas);
+        }
+
+        private Vector2 SlideBaseOf(RectTransform rt)
+        {
+            if (!_slideBaseAnchored.TryGetValue(rt, out var pos))
+            {
+                pos = rt.anchoredPosition;
+                _slideBaseAnchored[rt] = pos;
+            }
+            return pos;
+        }
+
+        private void SetSlideStart(RectTransform rt)
+        {
+            var basePos = SlideBaseOf(rt);
+            rt.anchoredPosition = new Vector2(basePos.x - ScreenEntranceSlideOffset, basePos.y);
+        }
+
+        private IEnumerator PlayScreenEntrance(AppScreen screen)
+        {
+            _menuBusy = true;
+            if (!_menuPanels.TryGetValue(screen, out var panel) || panel == null)
+            {
+                _menuBusy = false;
+                _screenEntranceRoutine = null;
+                yield break;
+            }
+
+            if (_entranceBanner != null)
+            {
+                var (bannerGfx, bannerAlphas) = EntranceGraphicsFor(_entranceBanner);
+                yield return MasuUiAnimations.SlideInFromLeftFade(_entranceBanner, SlideBaseOf(_entranceBanner),
+                    ScreenEntranceSlideOffset, ScreenEntranceBannerDuration, bannerGfx, bannerAlphas);
+            }
+
+            for (var i = 0; i < _entranceTargets.Count; i++)
+            {
+                var rt = _entranceTargets[i];
+                if (rt == null) continue;
+                var (gfx, alphas) = EntranceGraphicsFor(rt);
+                for (var g = 0; g < gfx.Length; g++)
+                    MasuUiAnimations.SetAlpha(gfx[g], 0f);
+                rt.anchoredPosition = new Vector2(SlideBaseOf(rt).x - ScreenEntranceSlideOffset, SlideBaseOf(rt).y);
+                StartCoroutine(MasuUiAnimations.SlideInFromLeftFade(rt, SlideBaseOf(rt), ScreenEntranceSlideOffset,
+                    ScreenEntranceItemDuration, gfx, alphas));
+                if (i < _entranceTargets.Count - 1)
+                    yield return new WaitForSecondsRealtime(ScreenEntranceStagger);
+            }
+
+            if (_entranceTargets.Count > 0)
+                yield return new WaitForSecondsRealtime(ScreenEntranceItemDuration);
+
+            _entranceBaseAlpha.Clear();
+            _menuBusy = false;
+            _screenEntranceRoutine = null;
+            RefreshMenuHighlights();
+        }
+
+        private void CollectEntranceMenuTargets(AppScreen screen, List<RectTransform> targets)
+        {
+            if (screen == AppScreen.PlayStyle)
+                _playStyleForestMenu?.CollectEntranceSlideTargets(targets);
+            else if (screen == AppScreen.Mode)
+                _modeForestMenu?.CollectEntranceSlideTargets(targets);
+            else if (screen == AppScreen.Grid)
+                _gridForestMenu?.CollectEntranceSlideTargets(targets);
+            else if (screen == AppScreen.ScoreRanking)
+                CollectRankingEntranceTargets(targets);
+            else if (screen == AppScreen.Options)
+                CollectLabelEntranceTargets(_optionsLabels, targets);
+            else if (screen == AppScreen.OptionsVisual)
+                CollectLabelEntranceTargets(_optionsVisualLabels, targets);
+            else if (screen == AppScreen.OptionsEffects)
+                CollectLabelEntranceTargets(_optionsEffectsLabels, targets);
+        }
+
+        private static void CollectLabelEntranceTargets(Text[] labels, List<RectTransform> targets)
+        {
+            if (labels == null) return;
+            foreach (var label in labels)
+            {
+                if (label != null)
+                    targets.Add(label.rectTransform);
+            }
+        }
+
+        private void CollectRankingEntranceTargets(List<RectTransform> targets)
+        {
+            if (_rankingOpTabs != null)
+            {
+                foreach (var tab in _rankingOpTabs)
+                    if (tab != null) targets.Add(tab.rectTransform);
+            }
+            if (_rankingGridArrowUp != null) targets.Add(_rankingGridArrowUp.rectTransform);
+            var gridRow = _rankingGridSizeLabel != null
+                ? _rankingGridSizeLabel.transform.parent
+                : null;
+            if (gridRow is RectTransform gridRt)
+                targets.Add(gridRt);
+            if (_rankingGridArrowDown != null) targets.Add(_rankingGridArrowDown.rectTransform);
+            if (_rankingRows != null)
+            {
+                foreach (var row in _rankingRows)
+                    if (row != null) targets.Add(row.rectTransform);
             }
         }
 
