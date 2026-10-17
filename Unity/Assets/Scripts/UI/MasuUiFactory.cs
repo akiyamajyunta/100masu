@@ -118,7 +118,8 @@ namespace Masu.UI
             Color innerBg,
             float borderInset = 3f,
             float regionScale = 1f,
-            float? regionScaleY = null)
+            float? regionScaleY = null,
+            Color? borderColor = null)
         {
             var scaleX = Mathf.Min(1f, regionScale);
             var scaleY = Mathf.Min(1f, regionScaleY ?? regionScale);
@@ -149,11 +150,56 @@ namespace Masu.UI
             frt.anchorMax = anchorMax;
             frt.offsetMin = offsetMin;
             frt.offsetMax = offsetMax;
-            frame.GetComponent<Image>().color = MasuTheme.BorderGold;
+            var border = borderColor ?? MasuTheme.BorderGold;
 
+            // 半透明の内側: 壁紙の上に黒を重ね、朱色／金は縁の帯だけ（Outline は全面が塗られるので使わない）。
+            if (innerBg.a < 0.99f)
+            {
+                frame.GetComponent<Image>().color = Color.clear;
+                var backdrop = CreatePanel(frame.transform, "Backdrop", innerBg);
+                Stretch(backdrop.GetComponent<RectTransform>());
+                AddRectBorderEdges(frame.transform, border, borderInset);
+                var content = CreatePanel(frame.transform, "Inner", Color.clear);
+                Stretch(content.GetComponent<RectTransform>(), borderInset, borderInset, borderInset, borderInset);
+                return content.GetComponent<RectTransform>();
+            }
+
+            frame.GetComponent<Image>().color = border;
             var inner = CreatePanel(frame.transform, "Inner", innerBg);
             Stretch(inner.GetComponent<RectTransform>(), borderInset, borderInset, borderInset, borderInset);
             return inner.GetComponent<RectTransform>();
+        }
+
+        public static void AddRectBorderEdges(Transform parent, Color borderColor, float thickness)
+        {
+            CreateBorderEdge(parent, "BorderTop", borderColor, new Vector2(0f, 1f), new Vector2(1f, 1f),
+                new Vector2(0f, -thickness), Vector2.zero);
+            CreateBorderEdge(parent, "BorderBottom", borderColor, new Vector2(0f, 0f), new Vector2(1f, 0f),
+                Vector2.zero, new Vector2(0f, thickness));
+            CreateBorderEdge(parent, "BorderLeft", borderColor, new Vector2(0f, 0f), new Vector2(0f, 1f),
+                Vector2.zero, new Vector2(thickness, 0f));
+            CreateBorderEdge(parent, "BorderRight", borderColor, new Vector2(1f, 0f), new Vector2(1f, 1f),
+                new Vector2(-thickness, 0f), Vector2.zero);
+        }
+
+        static void CreateBorderEdge(
+            Transform parent,
+            string name,
+            Color color,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            Vector2 offsetMin,
+            Vector2 offsetMax)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Image>().color = color;
+            go.GetComponent<Image>().raycastTarget = false;
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchorMin;
+            rt.anchorMax = anchorMax;
+            rt.offsetMin = offsetMin;
+            rt.offsetMax = offsetMax;
         }
 
         public static Text CreateSidebarStatRow(

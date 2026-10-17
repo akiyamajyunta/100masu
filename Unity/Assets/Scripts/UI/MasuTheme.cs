@@ -18,6 +18,10 @@ namespace Masu.UI
         public static readonly Color TextDim = Hex("#b4a894");
         public static readonly Color CursorGold = Hex("#e6c85a");
         public static readonly Color BorderGold = Hex("#ccac4e");
+        /// <summary>プレイ中の盤面・スコア枠（朱色）。</summary>
+        public static readonly Color GameFrameBorder = Hex("#c23c3c");
+        /// <summary>プレイ中枠の内側（黒 40%）。</summary>
+        public static readonly Color GameFrameInner = new Color(0f, 0f, 0f, 0.4f);
         public static readonly Color CellEmpty = Hex("#1e2838");
         public static readonly Color CellQuickCorrect = Hex("#1a4030");
         public static readonly Color CellQuickWrong = Hex("#4a2028");

@@ -9,8 +9,12 @@ namespace Masu.UI
     {
         private const int FocusPulseSteps = 30;
         private const float FocusPulseIntervalSec = 0.03f;
+        /// <summary>セル間 spacing と同じ幅。プレート外周＝最外枠の赤線。</summary>
+        private const float GridFrameLine = 2f;
 
         private readonly Transform _root;
+        private readonly RectTransform _gridPlateRt;
+        private readonly RectTransform _gridOuterBorderRt;
         private readonly GridLayoutGroup _layout;
         private readonly Dictionary<(int r, int c), CellWidgets> _cells = new();
         private float _cellSize = 56f;
@@ -64,6 +68,22 @@ namespace Masu.UI
 
         public MasuGridView(Transform parent)
         {
+            // セル間の spacing に見える枠色（以前は外枠の朱色が透けていた）
+            var plateGo = new GameObject("GridPlate", typeof(RectTransform), typeof(Image));
+            plateGo.transform.SetParent(parent, false);
+            _gridPlateRt = plateGo.GetComponent<RectTransform>();
+            _gridPlateRt.anchorMin = _gridPlateRt.anchorMax = new Vector2(0.5f, 0.5f);
+            _gridPlateRt.pivot = new Vector2(0.5f, 0.5f);
+            var plateImg = plateGo.GetComponent<Image>();
+            plateImg.color = MasuTheme.GameFrameBorder;
+            plateImg.raycastTarget = false;
+
+            var borderGo = new GameObject("GridOuterBorder", typeof(RectTransform));
+            borderGo.transform.SetParent(parent, false);
+            _gridOuterBorderRt = borderGo.GetComponent<RectTransform>();
+            _gridOuterBorderRt.anchorMin = _gridOuterBorderRt.anchorMax = new Vector2(0.5f, 0.5f);
+            _gridOuterBorderRt.pivot = new Vector2(0.5f, 0.5f);
+
             var go = new GameObject("Grid", typeof(RectTransform), typeof(GridLayoutGroup));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
@@ -91,7 +111,12 @@ namespace Masu.UI
 
             var rt = _root.GetComponent<RectTransform>();
             var total = n * _cellSize + (n - 1) * _layout.spacing.x;
-            rt.sizeDelta = new Vector2(total, total);
+            var gridSize = new Vector2(total, total);
+            var outerSize = gridSize + new Vector2(GridFrameLine * 2f, GridFrameLine * 2f);
+            rt.sizeDelta = gridSize;
+            _gridPlateRt.sizeDelta = outerSize;
+            _gridOuterBorderRt.sizeDelta = outerSize;
+            SyncGridOuterBorder();
 
             for (var row = 0; row < n; row++)
             for (var col = 0; col < n; col++)
@@ -106,6 +131,18 @@ namespace Masu.UI
                 var bg = isHeader ? MasuTheme.HeaderSlot : MasuTheme.CellEmpty;
                 CreateCell(row, col, bg, isHeader, "");
             }
+
+            _gridOuterBorderRt.SetAsLastSibling();
+        }
+
+        private bool _gridOuterBorderBuilt;
+
+        private void SyncGridOuterBorder()
+        {
+            if (_gridOuterBorderBuilt) return;
+            _gridOuterBorderBuilt = true;
+            MasuUiFactory.AddRectBorderEdges(_gridOuterBorderRt, MasuTheme.GameFrameBorder, GridFrameLine);
+            _gridOuterBorderRt.SetAsLastSibling();
         }
 
         private void FitCellSize(int n)
@@ -121,7 +158,10 @@ namespace Masu.UI
             }
 
             var spacing = _layout.spacing.x;
-            var total = Mathf.Min(w, h);
+            var framePad = GridFrameLine * 2f;
+            var total = Mathf.Min(w, h) - framePad;
+            if (total < n * 8f)
+                total = Mathf.Min(w, h);
             var fit = (total - (n - 1) * spacing) / n;
             _cellSize = Mathf.Clamp(fit, 8f, 256f);
             _headerFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.4f));

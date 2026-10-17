@@ -724,8 +724,22 @@ namespace Masu.UI
             hintRt.sizeDelta = new Vector2(920, 32);
         }
 
+        private void BuildGameBackdrop()
+        {
+            var rootImage = _gameRoot.GetComponent<Image>();
+            if (rootImage != null)
+                rootImage.color = Color.clear;
+            var bg = CreateTitleArtImage(_gameRoot, "GameBg", "title_game_bg");
+            if (bg == null) return;
+            bg.transform.SetAsFirstSibling();
+            bg.type = Image.Type.Simple;
+            MasuUiFactory.StretchFullBleed(bg.rectTransform, BackdropBleedPixels);
+        }
+
         private void BuildGameLayer()
         {
+            BuildGameBackdrop();
+
             var playInner = MasuUiFactory.CreateFramedRegion(
                 _gameRoot,
                 "MainPlayFrame",
@@ -733,9 +747,10 @@ namespace Masu.UI
                 new Vector2(GameColumnSplitX, 1f),
                 new Vector2(16f, 16f),
                 new Vector2(-8f, -16f),
-                MasuTheme.MainInner,
+                MasuTheme.GameFrameInner,
                 regionScale: GameFrameRegionScaleX,
-                regionScaleY: GameFrameRegionScaleY);
+                regionScaleY: GameFrameRegionScaleY,
+                borderColor: MasuTheme.GameFrameBorder);
 
             var gridHost = new GameObject("GridHost", typeof(RectTransform), typeof(RectMask2D));
             gridHost.transform.SetParent(playInner, false);
@@ -777,9 +792,10 @@ namespace Masu.UI
                 new Vector2(1f, 1f),
                 new Vector2(MasuScoreSidebarLayout.GapFromMain, 16f),
                 new Vector2(-MasuScoreSidebarLayout.MarginRight, -16f),
-                MasuTheme.StatusInner,
+                MasuTheme.GameFrameInner,
                 regionScale: MasuScoreSidebarLayout.FrameRegionScaleX,
-                regionScaleY: MasuScoreSidebarLayout.FrameRegionScaleY);
+                regionScaleY: MasuScoreSidebarLayout.FrameRegionScaleY,
+                borderColor: MasuTheme.GameFrameBorder);
 
             _sidebarMode = MasuUiFactory.CreateText(scoreInner, "Mode", "", MasuScoreSidebarLayout.ModeFontSize,
                 MasuTheme.CursorGold, TextAnchor.UpperCenter);
