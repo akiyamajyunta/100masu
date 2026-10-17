@@ -98,6 +98,7 @@ namespace Masu.UI
         private readonly Dictionary<Graphic, float> _entranceBaseAlpha = new();
         private readonly List<RectTransform> _entranceTargets = new();
         private RectTransform _entranceBanner;
+        private readonly List<Coroutine> _entranceSlideRoutines = new();
         private const float ScreenEntranceSlideOffset = 720f;
         private const float ScreenEntranceBannerDuration = 0.5f;
         private const float ScreenEntranceItemDuration = 0.45f;
@@ -1011,6 +1012,12 @@ namespace Masu.UI
                 StopCoroutine(_screenEntranceRoutine);
                 _screenEntranceRoutine = null;
             }
+            foreach (var slide in _entranceSlideRoutines)
+            {
+                if (slide != null)
+                    StopCoroutine(slide);
+            }
+            _entranceSlideRoutines.Clear();
             SnapScreenEntranceTransforms();
             RestoreEntranceGraphics();
             _menuBusy = false;
@@ -1099,6 +1106,7 @@ namespace Masu.UI
         private IEnumerator PlayScreenEntrance(AppScreen screen)
         {
             _menuBusy = true;
+            _entranceSlideRoutines.Clear();
             if (!_menuPanels.TryGetValue(screen, out var panel) || panel == null)
             {
                 _menuBusy = false;
@@ -1109,8 +1117,12 @@ namespace Masu.UI
             if (_entranceBanner != null)
             {
                 var (bannerGfx, bannerAlphas) = EntranceGraphicsFor(_entranceBanner);
-                yield return MasuUiAnimations.SlideInFromLeftFade(_entranceBanner, SlideBaseOf(_entranceBanner),
-                    ScreenEntranceSlideOffset, ScreenEntranceBannerDuration, bannerGfx, bannerAlphas);
+                var bannerDone = false;
+                _entranceSlideRoutines.Add(StartCoroutine(RunEntranceSlide(
+                    _entranceBanner, SlideBaseOf(_entranceBanner), ScreenEntranceBannerDuration, bannerGfx,
+                    bannerAlphas, () => bannerDone = true)));
+                while (!bannerDone)
+                    yield return null;
             }
 
             for (var i = 0; i < _entranceTargets.Count; i++)
@@ -1121,8 +1133,8 @@ namespace Masu.UI
                 for (var g = 0; g < gfx.Length; g++)
                     MasuUiAnimations.SetAlpha(gfx[g], 0f);
                 rt.anchoredPosition = new Vector2(SlideBaseOf(rt).x - ScreenEntranceSlideOffset, SlideBaseOf(rt).y);
-                StartCoroutine(MasuUiAnimations.SlideInFromLeftFade(rt, SlideBaseOf(rt), ScreenEntranceSlideOffset,
-                    ScreenEntranceItemDuration, gfx, alphas));
+                _entranceSlideRoutines.Add(StartCoroutine(RunEntranceSlide(rt, SlideBaseOf(rt),
+                    ScreenEntranceItemDuration, gfx, alphas, null)));
                 if (i < _entranceTargets.Count - 1)
                     yield return new WaitForSecondsRealtime(ScreenEntranceStagger);
             }
@@ -1130,10 +1142,24 @@ namespace Masu.UI
             if (_entranceTargets.Count > 0)
                 yield return new WaitForSecondsRealtime(ScreenEntranceItemDuration);
 
+            _entranceSlideRoutines.Clear();
             _entranceBaseAlpha.Clear();
             _menuBusy = false;
             _screenEntranceRoutine = null;
             RefreshMenuHighlights();
+        }
+
+        private static IEnumerator RunEntranceSlide(
+            RectTransform rt,
+            Vector2 basePos,
+            float duration,
+            Graphic[] graphics,
+            float[] baseAlphas,
+            Action onComplete)
+        {
+            yield return MasuUiAnimations.SlideInFromLeftFade(rt, basePos, ScreenEntranceSlideOffset, duration, graphics,
+                baseAlphas);
+            onComplete?.Invoke();
         }
 
         private void CollectEntranceMenuTargets(AppScreen screen, List<RectTransform> targets)
@@ -1438,30 +1464,34 @@ namespace Masu.UI
             if (_screen == AppScreen.OptionsEffects)
                 RefreshOptionsEffectsMenuHighlights();
 
-            for (var i = 0; i < _rankingOpTabs.Length; i++)
+            if (_screen == AppScreen.ScoreRanking && _rankingOpTabs != null)
             {
-                var selected = i == _rankingOpCursor;
-                _rankingOpTabs[i].color = RankingTextWhite;
-                MasuFonts.ApplyRankingMincho(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize,
-                    bold: selected);
+                for (var i = 0; i < _rankingOpTabs.Length; i++)
+                {
+                    var selected = i == _rankingOpCursor;
+                    _rankingOpTabs[i].color = RankingTextWhite;
+                    MasuFonts.ApplyRankingMincho(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize,
+                        bold: selected);
+                }
+                if (_rankingGridSizeLabel != null && _rankingGridModeLabel != null)
+                {
+                    var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
+                    _rankingGridSizeLabel.text = $"{board.PlaySize}×{board.PlaySize}";
+                    _rankingGridModeLabel.text = board.Mode.LabelJa();
+                    MasuFonts.ApplyRankingLatin(_rankingGridSizeLabel, MasuRankingLayout.GridSizeFontSize);
+                    MasuFonts.ApplyRankingMincho(_rankingGridModeLabel, MasuRankingLayout.GridModeFontSize);
+                }
+                RefreshRankingTable();
             }
-            if (_rankingGridSizeLabel != null && _rankingGridModeLabel != null)
-            {
-                var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
-                _rankingGridSizeLabel.text = $"{board.PlaySize}×{board.PlaySize}";
-                _rankingGridModeLabel.text = board.Mode.LabelJa();
-                MasuFonts.ApplyRankingLatin(_rankingGridSizeLabel, MasuRankingLayout.GridSizeFontSize);
-                MasuFonts.ApplyRankingMincho(_rankingGridModeLabel, MasuRankingLayout.GridModeFontSize);
-            }
-            RefreshRankingTable();
         }
 
         private void RefreshRankingTable()
         {
+            if (_rankingRows == null) return;
             var op = Operations[_rankingOpCursor];
             var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < _rankingRows.Length; i++)
             {
                 _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
                 MasuFonts.ApplyRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
