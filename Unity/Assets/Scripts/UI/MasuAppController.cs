@@ -730,10 +730,30 @@ namespace Masu.UI
             if (rootImage != null)
                 rootImage.color = Color.clear;
             var bg = CreateTitleArtImage(_gameRoot, "GameBg", "title_game_bg");
-            if (bg == null) return;
-            bg.transform.SetAsFirstSibling();
-            bg.type = Image.Type.Simple;
-            MasuUiFactory.StretchFullBleed(bg.rectTransform, BackdropBleedPixels);
+            if (bg != null)
+            {
+                bg.transform.SetAsFirstSibling();
+                bg.type = Image.Type.Simple;
+                MasuUiFactory.StretchFullBleed(bg.rectTransform, BackdropBleedPixels);
+            }
+
+            BuildGameOverlayGif(bg != null ? 1 : 0);
+        }
+
+        /// <summary>背景の上・UI枠の下に GIF オーバーレイ（花びら等）。</summary>
+        private void BuildGameOverlayGif(int siblingIndex)
+        {
+            if (Resources.Load<TextAsset>("TitleArt/title_game_overlay.gif") == null)
+                return;
+
+            var go = new GameObject("GameOverlayGif", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
+                typeof(MasuUiGifPlayer));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            var img = go.GetComponent<Image>();
+            img.color = Color.white;
+            img.raycastTarget = false;
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
         }
 
         private void BuildGameLayer()
