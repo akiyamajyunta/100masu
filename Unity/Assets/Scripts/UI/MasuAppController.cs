@@ -117,6 +117,7 @@ namespace Masu.UI
         private Text _rankingGridArrowUp;
         private Text _rankingGridArrowDown;
         private Text[] _rankingRows;
+        private Text[] _rankingGridSelectLabels;
         private Text _sidebarMode;
         private Text _sidebarGrid;
         private Text _sidebarHigh;
@@ -172,6 +173,9 @@ namespace Masu.UI
         private const float TitleMenuTextPaddingLeft = 43f;
         private static readonly Color TitleMenuTextBlack = new(0.06f, 0.06f, 0.06f);
         private static readonly Color TitleMenuTextIdle = new(0.06f, 0.06f, 0.06f, 0.55f);
+        private static readonly Color OverlayMenuTextIdle = new(1f, 1f, 1f, 0.55f);
+        /// <summary>記録・オプションの点滅ハイライト（白文字上で見えるようタイトルの白点滅に相当する金色）。</summary>
+        private static readonly Color OverlayMenuFlashColor = MasuTheme.CursorGold;
         private Image _titleSidePanel;
         private static readonly string[] PauseMenuItems = { "ゲームに戻る", "メニューに戻る" };
         private static readonly string[] EndConfirmItems = { "はい", "いいえ" };
@@ -450,6 +454,10 @@ namespace Masu.UI
                 out var optionsEffectsPanel);
             MasuInstructionBanner.Create(optionsEffectsPanel.transform, "お好みのエフェクトをお選びください");
             _menuPanels[AppScreen.OptionsEffects] = optionsEffectsPanel;
+
+            CacheLabelBasePositions(_optionsLabels);
+            CacheLabelBasePositions(_optionsVisualLabels);
+            CacheLabelBasePositions(_optionsEffectsLabels);
         }
 
         private static string[] OptionsEffectsMenuLabels() =>
@@ -620,21 +628,116 @@ namespace Masu.UI
                 labels[i].rectTransform.sizeDelta = new Vector2(720, MasuOptionsLayout.MenuFontSize + 16f);
                 StyleRankingJapanese(labels[i], MasuOptionsLayout.MenuFontSize);
             }
+
             return labels;
         }
 
-        /// <summary>記録・オプション共通。白＋黒縁＋明朝、選択は太字。</summary>
+        /// <summary>記録・オプション共通。タイトルと同じスライドイン＋点滅（色は白文字用）。</summary>
         private void HighlightOverlayMenuList(Text[] labels, int cursor, string[] items)
         {
             if (labels == null || labels.Length == 0) return;
+            for (var i = 0; i < labels.Length; i++)
+                labels[i].text = items[i];
+            HighlightOverlayItemList(labels, cursor, MasuOptionsLayout.MenuFontSize);
+        }
+
+        private void HighlightOverlayItemList(Text[] labels, int cursor, int fontSize, bool latinFont = false)
+        {
+            if (labels == null || labels.Length == 0 || _menuBusy) return;
+            var changed = !_listCursorMemo.TryGetValue(labels, out var prev) || prev != cursor;
             _listCursorMemo[labels] = cursor;
+
             for (var i = 0; i < labels.Length; i++)
             {
-                var sel = i == cursor;
-                labels[i].text = items[i];
-                labels[i].color = RankingTextWhite;
-                MasuFonts.ApplyRankingMincho(labels[i], MasuOptionsLayout.MenuFontSize, bold: sel);
+                if (i == cursor) continue;
                 RestoreLabelPose(labels[i]);
+                labels[i].color = OverlayMenuTextIdle;
+                ApplyOverlayMenuFont(labels[i], fontSize, latinFont, bold: false);
+            }
+
+            if (cursor < 0 || cursor >= labels.Length) return;
+            var selected = labels[cursor];
+            ApplyOverlayMenuFont(selected, fontSize, latinFont, bold: true);
+            if (changed && selected.gameObject.activeInHierarchy)
+                PlayOverlaySelectSlideIn(selected);
+            else if (!_labelAnims.ContainsKey(selected))
+                selected.color = RankingTextWhite;
+        }
+
+        private static void ApplyOverlayMenuFont(Text label, int fontSize, bool latin, bool bold)
+        {
+            if (latin)
+                MasuFonts.ApplyRankingLatin(label, fontSize, bold);
+            else
+                MasuFonts.ApplyRankingMincho(label, fontSize, bold);
+        }
+
+        private void PlayOverlaySelectSlideIn(Text label)
+        {
+            RestoreLabelPose(label);
+            var basePos = BasePosOf(label);
+            label.color = RankingTextWhite;
+            _labelAnims[label] = StartCoroutine(RunLabelAnim(label,
+                MasuUiAnimations.SlideInFlash(label, basePos, SelectSlideOffsetX * 0.5f, SelectSlideSeconds,
+                    RankingTextWhite, OverlayMenuFlashColor, SelectFlashCount)));
+        }
+
+        private void CacheLabelBasePositions(Text[] labels)
+        {
+            if (labels == null) return;
+            foreach (var label in labels)
+            {
+                if (label == null) continue;
+                _labelBasePos[label] = label.rectTransform.anchoredPosition;
+            }
+        }
+
+        /// <summary>記録画面の四則タブ。選択中は黄色＋タイトル同様のスライド点滅。</summary>
+        private void HighlightRankingOpTabs()
+        {
+            if (_rankingOpTabs == null || _rankingOpTabs.Length == 0 || _menuBusy) return;
+            var changed = !_listCursorMemo.TryGetValue(_rankingOpTabs, out var prev) || prev != _rankingOpCursor;
+            _listCursorMemo[_rankingOpTabs] = _rankingOpCursor;
+
+            for (var i = 0; i < _rankingOpTabs.Length; i++)
+            {
+                if (i == _rankingOpCursor) continue;
+                RestoreLabelPose(_rankingOpTabs[i]);
+                _rankingOpTabs[i].color = OverlayMenuTextIdle;
+                MasuFonts.ApplyRankingMincho(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize, bold: false);
+            }
+
+            if (_rankingOpCursor < 0 || _rankingOpCursor >= _rankingOpTabs.Length) return;
+            var selected = _rankingOpTabs[_rankingOpCursor];
+            MasuFonts.ApplyRankingMincho(selected, MasuRankingLayout.OperationTabFontSize, bold: true);
+            if (changed && selected.gameObject.activeInHierarchy)
+                PlaySelectSlideIn(selected);
+            else if (!_labelAnims.ContainsKey(selected))
+                selected.color = MasuTheme.CursorGold;
+        }
+
+        private void HighlightRankingGridSelector()
+        {
+            if (_rankingGridSelectLabels == null || _menuBusy) return;
+            var changed = !_listCursorMemo.TryGetValue(_rankingGridSelectLabels, out var prev)
+                          || prev != _rankingBoardCursor;
+            _listCursorMemo[_rankingGridSelectLabels] = _rankingBoardCursor;
+
+            foreach (var label in _rankingGridSelectLabels)
+            {
+                if (!changed)
+                {
+                    if (!_labelAnims.ContainsKey(label))
+                        label.color = RankingTextWhite;
+                    continue;
+                }
+
+                if (label == _rankingGridSizeLabel)
+                    MasuFonts.ApplyRankingLatin(label, MasuRankingLayout.GridSizeFontSize);
+                else
+                    MasuFonts.ApplyRankingMincho(label, MasuRankingLayout.GridModeFontSize);
+                if (label.gameObject.activeInHierarchy)
+                    PlayOverlaySelectSlideIn(label);
             }
         }
 
@@ -693,6 +796,10 @@ namespace Masu.UI
             MasuUiFactory.PlaceTopCenter(_rankingGridArrowDown.rectTransform, MasuRankingLayout.GridArrowDownTopY,
                 56f, 48f);
             StyleRankingJapanese(_rankingGridArrowDown, MasuRankingLayout.GridArrowFontSize);
+
+            _rankingGridSelectLabels = new[] { _rankingGridSizeLabel, _rankingGridModeLabel };
+            CacheLabelBasePositions(_rankingOpTabs);
+            CacheLabelBasePositions(_rankingGridSelectLabels);
 
             _rankingRows = new Text[10];
             for (var i = 0; i < 10; i++)
@@ -1026,6 +1133,12 @@ namespace Masu.UI
             if (_forestBackdrop != null)
                 _forestBackdrop.SetActive(IsForestMenuScreen(screen));
             ForgetListCursor(LabelsForScreen(screen));
+            if (screen == AppScreen.ScoreRanking)
+            {
+                ForgetListCursor(_rankingOpTabs);
+                ForgetListCursor(_rankingGridSelectLabels);
+            }
+
             if (IsForestMenuScreen(screen))
                 SyncForestMenuHighlight(screen);
             if (screen == AppScreen.Title && !_titleOpPlayed)
@@ -1046,6 +1159,7 @@ namespace Masu.UI
 
         private static bool UsesScreenEntrance(AppScreen screen) =>
             IsForestMenuScreen(screen)
+            || screen == AppScreen.ScoreRanking
             || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
             || screen == AppScreen.OptionsEffects;
 
@@ -1499,7 +1613,8 @@ namespace Masu.UI
 
         private void RefreshMenuHighlights()
         {
-            if (_titleOpRoutine == null)
+            if (_menuBusy) return;
+            if (_screen == AppScreen.Title && _titleOpRoutine == null)
                 HighlightTitleMenuList();
             if (_screen == AppScreen.Options)
                 RefreshOptionsMenuHighlights();
@@ -1510,21 +1625,15 @@ namespace Masu.UI
 
             if (_screen == AppScreen.ScoreRanking && _rankingOpTabs != null)
             {
-                for (var i = 0; i < _rankingOpTabs.Length; i++)
-                {
-                    var selected = i == _rankingOpCursor;
-                    _rankingOpTabs[i].color = RankingTextWhite;
-                    MasuFonts.ApplyRankingMincho(_rankingOpTabs[i], MasuRankingLayout.OperationTabFontSize,
-                        bold: selected);
-                }
+                HighlightRankingOpTabs();
                 if (_rankingGridSizeLabel != null && _rankingGridModeLabel != null)
                 {
                     var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
                     _rankingGridSizeLabel.text = $"{board.PlaySize}×{board.PlaySize}";
                     _rankingGridModeLabel.text = board.Mode.LabelJa();
-                    MasuFonts.ApplyRankingLatin(_rankingGridSizeLabel, MasuRankingLayout.GridSizeFontSize);
-                    MasuFonts.ApplyRankingMincho(_rankingGridModeLabel, MasuRankingLayout.GridModeFontSize);
                 }
+
+                HighlightRankingGridSelector();
                 RefreshRankingTable();
             }
         }
@@ -1648,20 +1757,44 @@ namespace Masu.UI
         }
 
         /// <summary>決定: 選択項目を点滅させてから then を実行。演出中は入力を止める。</summary>
-        private void Decide(Text label, Action then)
+        private void Decide(Text label, Action then, Color? flashBaseColor = null)
         {
             if (_menuBusy) return;
             _menuBusy = true;
-            StartCoroutine(DecideRoutine(label, then));
+            StartCoroutine(DecideRoutine(label, then, flashBaseColor));
         }
 
-        private IEnumerator DecideRoutine(Text label, Action then)
+        /// <summary>記録・オプション（白文字）の決定。タイトルと同じ点滅回数・間隔（白⇄金）。</summary>
+        private void DecideOverlay(Text label, Action then)
+        {
+            if (_menuBusy) return;
+            _menuBusy = true;
+            StartCoroutine(DecideOverlayRoutine(label, then));
+        }
+
+        private IEnumerator DecideOverlayRoutine(Text label, Action then)
         {
             if (label != null)
             {
                 RestoreLabelPose(label);
-                var baseColor = label.color;
+                label.color = RankingTextWhite;
+                yield return MasuUiAnimations.Flash(label, RankingTextWhite, OverlayMenuFlashColor,
+                    DecideFlashCount, DecideFlashInterval);
+                label.color = RankingTextWhite;
+            }
+
+            _menuBusy = false;
+            then?.Invoke();
+        }
+
+        private IEnumerator DecideRoutine(Text label, Action then, Color? flashBaseColor)
+        {
+            if (label != null)
+            {
+                RestoreLabelPose(label);
+                var baseColor = flashBaseColor ?? label.color;
                 baseColor.a = 1f;
+                label.color = baseColor;
                 yield return MasuUiAnimations.Flash(label, baseColor, Color.white,
                     DecideFlashCount, DecideFlashInterval);
             }
@@ -2428,7 +2561,7 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _optionsCursor;
-                Decide(_optionsLabels[choice], () =>
+                DecideOverlay(_optionsLabels[choice], () =>
                 {
                     if (choice == 0) OpenOptionsVisualScreen();
                     else if (choice == 1) OpenOptionsEffectsScreen();
@@ -2442,7 +2575,7 @@ namespace Masu.UI
         private void HandleOptionsVisualInput()
         {
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                Decide(_optionsVisualLabels[0], () => ShowScreen(AppScreen.Options));
+                DecideOverlay(_optionsVisualLabels[0], () => ShowScreen(AppScreen.Options));
             else if (Input.GetKeyDown(KeyCode.Escape))
                 ShowScreen(AppScreen.Options);
         }
@@ -2463,7 +2596,7 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _optionsEffectsCursor;
-                Decide(_optionsEffectsLabels[choice], () =>
+                DecideOverlay(_optionsEffectsLabels[choice], () =>
                 {
                     if (choice == 0)
                     {
@@ -2658,6 +2791,10 @@ namespace Masu.UI
                 var n = PlayBoardCatalog.RankingBoards.Length;
                 _rankingBoardCursor = (_rankingBoardCursor + 1) % n;
                 RefreshMenuHighlights();
+            }
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                Decide(_rankingOpTabs[_rankingOpCursor], () => { }, MasuTheme.CursorGold);
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
         }
