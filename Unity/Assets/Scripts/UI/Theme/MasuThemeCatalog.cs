@@ -55,7 +55,18 @@ namespace Masu.UI
             yield return CreateRuntime("modern", "モダン", MasuThemePalette.Modern(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.1f, 0.14f, 0.2f));
             yield return CreateRuntime("cyber", "サイバー", MasuThemePalette.Cyber(),
-                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.06f, 0.08f));
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.06f, 0.08f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.GameOfLife);
+            yield return CreateRuntime("corona", "コロナ", MasuThemePalette.Corona(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.08f, 0.03f, 0.01f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.Mandelbrot);
+            yield return CreateRuntime("cosmo", "コスモ", MasuThemePalette.Cosmo(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.04f, 0.07f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.Julia);
+            yield return CreateRuntime("phonon", "フォノン", MasuThemePalette.Phonon(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.05f, 0.07f, 0.09f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.Penrose,
+                gameBackdropFallback: new Color(0.05f, 0.07f, 0.09f));
             yield return CreateRuntime("pop", "ポップ", MasuThemePalette.Pop(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(1f, 0.92f, 0.96f));
         }
@@ -69,7 +80,9 @@ namespace Masu.UI
             Color? menuFallback = null,
             string overlayGif = "",
             string overlayTex = "",
-            float overlayScrollSpeed = 0f)
+            float overlayScrollSpeed = 0f,
+            MasuThemeGameBackgroundKind gameBackgroundKind = MasuThemeGameBackgroundKind.Auto,
+            Color? gameBackdropFallback = null)
         {
             var def = ScriptableObject.CreateInstance<MasuThemeDefinition>();
             def.name = $"Builtin_{id}";
@@ -78,11 +91,14 @@ namespace Masu.UI
             def.Palette = palette;
             def.MenuPhotoResource = menuPhoto ?? "";
             def.GameBackgroundResource = gameBg ?? "";
+            def.GameBackgroundKind = gameBackgroundKind;
             def.GameOverlayGifResource = overlayGif ?? "";
             def.GameOverlayTextureResource = overlayTex ?? "";
             def.GameOverlayScrollSpeed = overlayScrollSpeed;
             if (menuFallback.HasValue)
                 def.MenuBackdropFallback = menuFallback.Value;
+            if (gameBackdropFallback.HasValue)
+                def.GameBackdropFallback = gameBackdropFallback.Value;
             return def;
         }
     }

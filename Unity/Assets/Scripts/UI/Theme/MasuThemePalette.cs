@@ -153,6 +153,75 @@ namespace Masu.UI
             return p;
         }
 
+        public static MasuThemePalette Cosmo()
+        {
+            var p = Wafuu();
+            p.Bg = Hex("#060a12");
+            p.MainPanel = Hex("#0c1424");
+            p.Text = Hex("#e8f8ff");
+            p.TextDim = Hex("#6a9eb8");
+            p.CursorGold = Hex("#22e0ff");
+            p.BorderGold = Hex("#1ab8e8");
+            p.GameFrameBorder = Hex("#22e0ff");
+            p.CellEmpty = Hex("#0a1018");
+            p.HeaderSlot = Hex("#121c2e");
+            p.HeaderNum = Hex("#1e3050");
+            p.PlusBg = Hex("#4488ff");
+            p.GridCellText = Hex("#f4fcff");
+            p.FocusRing = Hex("#22e0ff");
+            p.FocusRingBright = Hex("#a8f0ff");
+            p.FocusRingDim = Hex("#0a7090");
+            p.ThemeCardTint = new Color(0.08f, 0.22f, 0.38f, 0.95f);
+            p.ThemeCardSelectedBorder = Hex("#22e0ff");
+            return p;
+        }
+
+        public static MasuThemePalette Phonon()
+        {
+            var p = Wafuu();
+            p.Bg = Hex("#0d1117");
+            p.MainPanel = Hex("#141a24");
+            p.Text = Hex("#e8f4ff");
+            p.TextDim = Hex("#6a8aa8");
+            p.CursorGold = Hex("#00e5ff");
+            p.BorderGold = Hex("#00c8e0");
+            p.GameFrameBorder = Hex("#00e5ff");
+            p.CellEmpty = Hex("#0a0e14");
+            p.HeaderSlot = Hex("#121820");
+            p.HeaderNum = Hex("#1c2838");
+            p.PlusBg = Hex("#7b5cff");
+            p.GridCellText = Hex("#f0f8ff");
+            p.FocusRing = Hex("#00e5ff");
+            p.FocusRingBright = Hex("#88f0ff");
+            p.FocusRingDim = Hex("#0088a0");
+            p.ThemeCardTint = new Color(0.06f, 0.14f, 0.22f, 0.95f);
+            p.ThemeCardSelectedBorder = Hex("#00e5ff");
+            return p;
+        }
+
+        public static MasuThemePalette Corona()
+        {
+            var p = Wafuu();
+            p.Bg = Hex("#0a0402");
+            p.MainPanel = Hex("#1a0c06");
+            p.Text = Hex("#ffeedd");
+            p.TextDim = Hex("#c49a6c");
+            p.CursorGold = Hex("#ffb347");
+            p.BorderGold = Hex("#ff8c1a");
+            p.GameFrameBorder = Hex("#ffa040");
+            p.CellEmpty = Hex("#1a0e08");
+            p.HeaderSlot = Hex("#2a1408");
+            p.HeaderNum = Hex("#4a2810");
+            p.PlusBg = Hex("#ff6b18");
+            p.GridCellText = Hex("#fff0e0");
+            p.FocusRing = Hex("#ffcc66");
+            p.FocusRingBright = Hex("#ffe8aa");
+            p.FocusRingDim = Hex("#cc6600");
+            p.ThemeCardTint = new Color(0.45f, 0.18f, 0.06f, 0.95f);
+            p.ThemeCardSelectedBorder = Hex("#ffb347");
+            return p;
+        }
+
         public static MasuThemePalette Pop()
         {
             var p = Wafuu();

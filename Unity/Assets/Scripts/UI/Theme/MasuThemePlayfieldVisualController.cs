@@ -17,16 +17,138 @@ namespace Masu.UI
             MasuThemeResourceCache.WarmPlayfield(definition);
             var visual = MasuThemeGameVisualConfig.FromDefinition(definition);
 
-            MasuThemeBackdropApplier.ApplyBackdrop(
-                _bindings.GameBackground,
-                visual.BackgroundResourceKey,
-                visual.BackgroundFallback);
-
+            ApplyBackground(visual);
             StopOverlayPlayback();
             ApplyOverlay(visual.Overlay);
         }
 
-        public void StopGameplayOverlays() => StopOverlayPlayback();
+        public void StopGameplayOverlays()
+        {
+            StopOverlayPlayback();
+            HideProceduralBackgrounds();
+        }
+
+        private void ApplyBackground(MasuThemeGameVisualConfig visual)
+        {
+            HideProceduralBackgrounds();
+
+            switch (visual.BackgroundKind)
+            {
+                case MasuThemeGameBackgroundKind.GameOfLife:
+                    ShowGameOfLife(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.Mandelbrot:
+                    ShowMandelbrot(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.Julia:
+                    ShowJulia(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.Penrose:
+                    ShowPenrose(visual.BackgroundFallback);
+                    return;
+            }
+
+            if (_bindings.GameBackground != null)
+                _bindings.GameBackground.enabled = true;
+            MasuThemeBackdropApplier.ApplyBackdrop(
+                _bindings.GameBackground,
+                visual.BackgroundResourceKey,
+                visual.BackgroundFallback);
+        }
+
+        private void PrepareBackdropFallback(Color fallback)
+        {
+            if (_bindings?.GameBackground == null) return;
+            MasuThemeBackdropApplier.ClearRuntimeSprite(_bindings.GameBackground);
+            _bindings.GameBackground.sprite = null;
+            _bindings.GameBackground.color = fallback;
+            // プロシージャル RawImage の下に単色 GameBg が見えると「灰色だけ」に見えるため非表示にする。
+            _bindings.GameBackground.enabled = false;
+        }
+
+        private void ShowGameOfLife(Color fallback)
+        {
+            var life = _bindings?.GameOfLife;
+            if (life == null) return;
+
+            PrepareBackdropFallback(fallback);
+            life.gameObject.SetActive(true);
+            PinProceduralAboveBackground(life.transform);
+            life.PlayBackground();
+        }
+
+        private void ShowMandelbrot(Color fallback)
+        {
+            var fractal = _bindings?.Mandelbrot;
+            if (fractal == null) return;
+
+            PrepareBackdropFallback(fallback);
+            fractal.gameObject.SetActive(true);
+            PinProceduralAboveBackground(fractal.transform);
+            fractal.PlayBackground();
+        }
+
+        private void ShowJulia(Color fallback)
+        {
+            var julia = _bindings?.Julia;
+            if (julia == null) return;
+
+            PrepareBackdropFallback(fallback);
+            julia.gameObject.SetActive(true);
+            PinProceduralAboveBackground(julia.transform);
+            julia.PlayBackground();
+        }
+
+        private void ShowPenrose(Color fallback)
+        {
+            var penrose = _bindings?.Penrose;
+            if (penrose == null) return;
+
+            PrepareBackdropFallback(fallback);
+            penrose.gameObject.SetActive(true);
+            PinProceduralAboveBackground(penrose.transform);
+            penrose.PlayBackground();
+        }
+
+        private void HideProceduralBackgrounds()
+        {
+            HideGameOfLife();
+            HideMandelbrot();
+            HideJulia();
+            HidePenrose();
+        }
+
+        private void HideGameOfLife()
+        {
+            var life = _bindings?.GameOfLife;
+            if (life == null) return;
+            life.StopBackground();
+            life.gameObject.SetActive(false);
+        }
+
+        private void HideMandelbrot()
+        {
+            var fractal = _bindings?.Mandelbrot;
+            if (fractal == null) return;
+            fractal.StopBackground();
+            fractal.gameObject.SetActive(false);
+        }
+
+        private void HideJulia()
+        {
+            var julia = _bindings?.Julia;
+            if (julia == null) return;
+            julia.StopBackground();
+            julia.gameObject.SetActive(false);
+        }
+
+        private void HidePenrose()
+        {
+            var penrose = _bindings?.Penrose;
+            if (penrose == null) return;
+            penrose.StopBackground();
+            penrose.gameObject.SetActive(false);
+        }
 
         private void ApplyOverlay(MasuThemeGameOverlayConfig overlay)
         {
@@ -55,7 +177,7 @@ namespace Masu.UI
             SetVideoLayerActive(false);
             MasuThemeBackdropApplier.ApplyOverlay(img, overlay.ResourceKey);
             img.gameObject.SetActive(true);
-            PinOverlayAboveBackground(img.transform);
+            PinLayerAboveBackground(img.transform);
 
             var scroll = img.GetComponent<MasuThemeOverlayScrollMotion>();
             if (scroll == null)
@@ -84,7 +206,7 @@ namespace Masu.UI
             var path = MasuThemeResourceCache.TitleArtPath(gifFileName);
             player.Play(path);
             player.gameObject.SetActive(true);
-            PinOverlayAboveBackground(player.transform);
+            PinLayerAboveBackground(player.transform);
         }
 
         private void ShowVideoOverlay(string clipKey)
@@ -151,12 +273,37 @@ namespace Masu.UI
             _bindings.GameOverlayVideo.gameObject.SetActive(active);
         }
 
-        /// <summary>背景の真上・100マス盤面より下（GameBg の次の sibling）。</summary>
-        private void PinOverlayAboveBackground(Transform overlay)
+        private void PinProceduralAboveBackground(Transform layer)
         {
             var bg = _bindings?.GameBackground;
-            if (bg == null || overlay == null) return;
-            overlay.SetSiblingIndex(bg.transform.GetSiblingIndex() + 1);
+            if (bg == null || layer == null) return;
+            layer.SetSiblingIndex(bg.transform.GetSiblingIndex() + 1);
+        }
+
+        /// <summary>背景（静止画 or プロシージャル）の真上・100マス盤面より下。</summary>
+        private void PinLayerAboveBackground(Transform layer)
+        {
+            var bg = _bindings?.GameBackground;
+            if (bg == null || layer == null) return;
+            var anchor = GetActiveProceduralTransform() ?? bg.transform;
+            layer.SetSiblingIndex(anchor.GetSiblingIndex() + 1);
+        }
+
+        private Transform GetActiveProceduralTransform()
+        {
+            var life = _bindings?.GameOfLife;
+            if (life != null && life.gameObject.activeSelf)
+                return life.transform;
+            var fractal = _bindings?.Mandelbrot;
+            if (fractal != null && fractal.gameObject.activeSelf)
+                return fractal.transform;
+            var julia = _bindings?.Julia;
+            if (julia != null && julia.gameObject.activeSelf)
+                return julia.transform;
+            var penrose = _bindings?.Penrose;
+            if (penrose != null && penrose.gameObject.activeSelf)
+                return penrose.transform;
+            return null;
         }
     }
 }

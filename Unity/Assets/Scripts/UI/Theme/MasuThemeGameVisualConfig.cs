@@ -24,15 +24,18 @@ namespace Masu.UI
 
     public readonly struct MasuThemeGameVisualConfig
     {
+        public MasuThemeGameBackgroundKind BackgroundKind { get; }
         public string BackgroundResourceKey { get; }
         public Color BackgroundFallback { get; }
         public MasuThemeGameOverlayConfig Overlay { get; }
 
         public MasuThemeGameVisualConfig(
+            MasuThemeGameBackgroundKind backgroundKind,
             string backgroundResourceKey,
             Color backgroundFallback,
             MasuThemeGameOverlayConfig overlay)
         {
+            BackgroundKind = backgroundKind;
             BackgroundResourceKey = backgroundResourceKey ?? "";
             BackgroundFallback = backgroundFallback;
             Overlay = overlay;
@@ -41,13 +44,24 @@ namespace Masu.UI
         public static MasuThemeGameVisualConfig FromDefinition(MasuThemeDefinition def)
         {
             if (def == null)
-                return new MasuThemeGameVisualConfig("", Color.black, MasuThemeGameOverlayConfig.None);
+                return new MasuThemeGameVisualConfig(
+                    MasuThemeGameBackgroundKind.TitleArtTexture, "", Color.black, MasuThemeGameOverlayConfig.None);
 
             var overlay = ResolveOverlay(def);
             return new MasuThemeGameVisualConfig(
+                ResolveBackgroundKind(def),
                 def.GameBackgroundResource,
                 def.GameBackdropFallback,
                 overlay);
+        }
+
+        private static MasuThemeGameBackgroundKind ResolveBackgroundKind(MasuThemeDefinition def)
+        {
+            if (def.GameBackgroundKind != MasuThemeGameBackgroundKind.Auto)
+                return def.GameBackgroundKind;
+            if (!string.IsNullOrEmpty(def.GameBackgroundResource))
+                return MasuThemeGameBackgroundKind.TitleArtTexture;
+            return MasuThemeGameBackgroundKind.TitleArtTexture;
         }
 
         private static MasuThemeGameOverlayConfig ResolveOverlay(MasuThemeDefinition def)

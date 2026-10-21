@@ -97,6 +97,10 @@ namespace Masu.UI
         private Image _forestBackdropPhoto;
         private Image _forestBackdropScrim;
         private Image _gameBgImage;
+        private GameOfLifeBackground _gameOfLifeBackground;
+        private MandelbrotBackground _mandelbrotBackground;
+        private JuliaBackground _juliaBackground;
+        private PenroseBackground _penroseBackground;
         private MasuUiGifPlayer _gameOverlayGif;
         private Image _gameOverlayStatic;
         private Coroutine _forestHighlightRoutine;
@@ -255,6 +259,10 @@ namespace Masu.UI
                 ForestBackdropPhoto = _forestBackdropPhoto,
                 ForestBackdropScrim = _forestBackdropScrim,
                 GameBackground = _gameBgImage,
+                GameOfLife = _gameOfLifeBackground,
+                Mandelbrot = _mandelbrotBackground,
+                Julia = _juliaBackground,
+                Penrose = _penroseBackground,
                 GameOverlayGif = _gameOverlayGif,
                 GameOverlayStatic = _gameOverlayStatic,
                 TitleSidePanel = _titleSidePanel,
@@ -930,8 +938,56 @@ namespace Masu.UI
                 MasuUiFactory.StretchFullBleed(_gameBgImage.rectTransform, BackdropBleedPixels);
             }
 
-            BuildGameOverlayGif(_gameBgImage != null ? 1 : 0);
-            BuildDopamineScreenFx(_gameBgImage != null ? 2 : 1);
+            BuildGameOfLifeBackground(_gameBgImage != null ? 1 : 0);
+            BuildMandelbrotBackground(_gameBgImage != null ? 1 : 0);
+            BuildJuliaBackground(_gameBgImage != null ? 1 : 0);
+            BuildPenroseBackground(_gameBgImage != null ? 1 : 0);
+            BuildGameOverlayGif(_gameBgImage != null ? 2 : 1);
+            BuildDopamineScreenFx(_gameBgImage != null ? 3 : 2);
+        }
+
+        private void BuildGameOfLifeBackground(int siblingIndex)
+        {
+            var go = new GameObject("GameOfLifeBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(GameOfLifeBackground));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _gameOfLifeBackground = go.GetComponent<GameOfLifeBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildMandelbrotBackground(int siblingIndex)
+        {
+            var go = new GameObject("MandelbrotBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(MandelbrotBackground));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _mandelbrotBackground = go.GetComponent<MandelbrotBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildJuliaBackground(int siblingIndex)
+        {
+            var go = new GameObject("JuliaBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(JuliaBackground));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _juliaBackground = go.GetComponent<JuliaBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildPenroseBackground(int siblingIndex)
+        {
+            var go = new GameObject("PenroseBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(PenroseBackground));
+            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _penroseBackground = go.GetComponent<PenroseBackground>();
+            go.SetActive(false);
         }
 
         private void BuildDopamineScreenFx(int siblingIndex)

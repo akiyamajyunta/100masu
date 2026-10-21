@@ -21,6 +21,7 @@ namespace Masu.UI
         public string MenuScrimResource = "title_scrim";
         public string MenuScrimEffectResource = "title_scrim_effect";
         public string GameBackgroundResource = "title_game_bg";
+        public MasuThemeGameBackgroundKind GameBackgroundKind = MasuThemeGameBackgroundKind.Auto;
 
         [Header("Playfield overlay")]
         public MasuThemeGameOverlayKind GameOverlayKind = MasuThemeGameOverlayKind.Auto;
