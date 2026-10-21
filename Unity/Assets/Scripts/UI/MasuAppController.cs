@@ -92,6 +92,13 @@ namespace Masu.UI
         private MasuForestSelectMenu _modeForestMenu;
         private MasuForestSelectMenu _gridForestMenu;
         private GameObject _forestBackdrop;
+        private Image _titleBackdropPhoto;
+        private Image _titleBackdropScrim;
+        private Image _forestBackdropPhoto;
+        private Image _forestBackdropScrim;
+        private Image _gameBgImage;
+        private MasuUiGifPlayer _gameOverlayGif;
+        private Image _gameOverlayStatic;
         private Coroutine _forestHighlightRoutine;
         private Coroutine _screenEntranceRoutine;
         private readonly Dictionary<RectTransform, Vector2> _slideBaseAnchored = new();
@@ -105,12 +112,10 @@ namespace Masu.UI
         private const float ScreenEntranceStagger = 0.09f;
         private Text[] _optionsLabels;
         private int _optionsCursor;
-        private Text[] _optionsVisualLabels;
-        private int _optionsVisualCursor;
+        private MasuVisualThemeSelectUI _visualThemeSelect;
         private Text[] _optionsEffectsLabels;
         private int _optionsEffectsCursor;
         private static readonly string[] OptionsMenuItems = { "ビジュアル", "エフェクト", "戻る" };
-        private static readonly string[] OptionsVisualMenuItems = { "戻る" };
         private Text[] _rankingOpTabs;
         private Text _rankingGridLineLabel;
         private RectTransform _rankingGridSelector;
@@ -210,12 +215,16 @@ namespace Masu.UI
         {
             _store = ScoreStore.Load();
             MasuVisualSettings.Load();
+            MasuThemeManager.Initialize();
             var idx = MasuDisplaySettings.LoadSavedIndex();
             var ask = MasuDisplaySettings.LoadAskEveryTime();
             if (!ask)
                 MasuDisplaySettings.ApplySavedForSession();
 
             BuildUi();
+            RegisterThemeBindings();
+            MasuThemeManager.ApplyMainMenuLook();
+            MasuThemeManager.ThemeChanged += OnVisualThemeChanged;
             _displayGuard.Bind(this);
 
             if (ask)
@@ -232,7 +241,69 @@ namespace Masu.UI
 
         private void OnDestroy()
         {
+            MasuThemeManager.ThemeChanged -= OnVisualThemeChanged;
+            StopMenuCoroutines();
             StopGameCoroutines();
+        }
+
+        private void RegisterThemeBindings()
+        {
+            var bindings = new MasuThemeSpriteBindings
+            {
+                TitleBackdropPhoto = _titleBackdropPhoto,
+                TitleBackdropScrim = _titleBackdropScrim,
+                ForestBackdropPhoto = _forestBackdropPhoto,
+                ForestBackdropScrim = _forestBackdropScrim,
+                GameBackground = _gameBgImage,
+                GameOverlayGif = _gameOverlayGif,
+                GameOverlayStatic = _gameOverlayStatic,
+                TitleSidePanel = _titleSidePanel,
+            };
+            MasuThemeManager.RegisterBindings(bindings);
+        }
+
+        private void OnVisualThemeChanged(MasuThemeDefinition _)
+        {
+            if (_screen != AppScreen.Game) return;
+            MasuThemeManager.ApplyGameplayLook();
+            if (_gridView != null)
+                _gridView.Rebuild(_state.Grid);
+            RefreshGrid();
+            UpdateSidebar();
+        }
+
+        /// <summary>入場・決定・ラベル演出などメニュー系コルーチンを停止（破棄時の漏れ防止）。</summary>
+        private void StopMenuCoroutines()
+        {
+            StopScreenEntrance();
+            if (_titleOpRoutine != null)
+            {
+                StopCoroutine(_titleOpRoutine);
+                _titleOpRoutine = null;
+            }
+
+            if (_forestHighlightRoutine != null)
+            {
+                StopCoroutine(_forestHighlightRoutine);
+                _forestHighlightRoutine = null;
+            }
+
+            if (_keyboardSlideRoutine != null)
+            {
+                StopCoroutine(_keyboardSlideRoutine);
+                _keyboardSlideRoutine = null;
+            }
+
+            var animLabels = new List<Text>(_labelAnims.Keys);
+            foreach (var label in animLabels)
+            {
+                if (label == null) continue;
+                if (_labelAnims.TryGetValue(label, out var co) && co != null)
+                    StopCoroutine(co);
+            }
+
+            _labelAnims.Clear();
+            _menuBusy = false;
         }
 
         private void StopGameCoroutines()
@@ -297,6 +368,7 @@ namespace Masu.UI
                 case AppScreen.OptionsVisual: HandleOptionsVisualInput(); break;
                 case AppScreen.OptionsEffects: HandleOptionsEffectsInput(); break;
                 case AppScreen.Game:
+                    if (_gridView == null) break;
                     // セル演出は毎フレーム進める（イントロ・採点中も含む）
                     _gridView.Tick(Time.unscaledDeltaTime);
                     if (!_state.Finished && !_introAnimating && !_scoreAnimating)
@@ -447,9 +519,11 @@ namespace Masu.UI
             MasuInstructionBanner.Create(optionsPanel.transform, "オプション");
             _menuPanels[AppScreen.Options] = optionsPanel;
 
-            _optionsVisualLabels = BuildOverlayMenuList(_menuRoot, "OptionsVisual", OptionsVisualMenuItems,
-                out var optionsVisualPanel);
+            var optionsVisualPanel = MasuUiFactory.CreatePanel(_menuRoot, "OptionsVisual", Color.clear);
+            MasuUiFactory.Stretch(optionsVisualPanel.GetComponent<RectTransform>());
             MasuInstructionBanner.Create(optionsVisualPanel.transform, "お好みのビジュアルをお選びください");
+            _visualThemeSelect = MasuVisualThemeSelectUI.Build(optionsVisualPanel.transform,
+                () => ShowScreen(AppScreen.Options));
             _menuPanels[AppScreen.OptionsVisual] = optionsVisualPanel;
 
             _optionsEffectsLabels = BuildOverlayMenuList(_menuRoot, "OptionsEffects",
@@ -459,7 +533,6 @@ namespace Masu.UI
             _menuPanels[AppScreen.OptionsEffects] = optionsEffectsPanel;
 
             CacheLabelBasePositions(_optionsLabels);
-            CacheLabelBasePositions(_optionsVisualLabels);
             CacheLabelBasePositions(_optionsEffectsLabels);
         }
 
@@ -482,6 +555,8 @@ namespace Masu.UI
             MasuUiFactory.StretchFullBleed(_titleBackdrop.GetComponent<RectTransform>(), BackdropBleedPixels);
 
             AddForestPhotoAndScrim(_titleBackdrop.transform, out _titlePhoto, out _titleScrim);
+            _titleBackdropPhoto = _titlePhoto;
+            _titleBackdropScrim = _titleScrim;
 
             _titleLogo = CreateTitleArtImage(_titleBackdrop.transform, "Logo", "title_logo");
             if (_titleLogo != null)
@@ -512,7 +587,7 @@ namespace Masu.UI
             _forestBackdrop = new GameObject("ForestBackdrop", typeof(RectTransform));
             _forestBackdrop.transform.SetParent(_menuRoot, false);
             MasuUiFactory.StretchFullBleed(_forestBackdrop.GetComponent<RectTransform>(), BackdropBleedPixels);
-            AddForestPhotoAndScrim(_forestBackdrop.transform, out _, out _);
+            AddForestPhotoAndScrim(_forestBackdrop.transform, out _forestBackdropPhoto, out _forestBackdropScrim);
             _forestBackdrop.SetActive(false);
         }
 
@@ -747,6 +822,20 @@ namespace Masu.UI
         private static string FormatRankingGridLine(int playSize, GamePlayMode mode) =>
             $"{playSize}×{playSize} {mode.LabelJa()}";
 
+        private static bool TryGetRankingBoard(int cursor, out PlayBoard board)
+        {
+            var boards = PlayBoardCatalog.RankingBoards;
+            if (boards == null || boards.Length == 0)
+            {
+                board = default;
+                return false;
+            }
+
+            var i = Mathf.Clamp(cursor, 0, boards.Length - 1);
+            board = boards[i];
+            return true;
+        }
+
         private void BuildRankingPanel(out GameObject rankPanel)
         {
             rankPanel = MasuUiFactory.CreatePanel(_menuRoot, "Ranking", Color.clear);
@@ -791,7 +880,10 @@ namespace Masu.UI
                 FormatRankingGridLine(4, GamePlayMode.Classic), MasuRankingLayout.GridSizeFontSize, RankingTextWhite);
             StyleRankingGridLine(_rankingGridLineLabel);
             var lineRt = _rankingGridLineLabel.rectTransform;
-            MasuUiFactory.Stretch(lineRt);
+            lineRt.anchorMin = lineRt.anchorMax = new Vector2(0.5f, 0.5f);
+            lineRt.pivot = new Vector2(0.5f, 0.5f);
+            lineRt.anchoredPosition = Vector2.zero;
+            lineRt.sizeDelta = new Vector2(MasuRankingLayout.GridSelectorWidth, MasuRankingLayout.GridSelectorRowHeight);
 
             var downY = rowY - (MasuRankingLayout.GridSelectorRowHeight + MasuRankingLayout.GridSelectorVerticalGap);
             _rankingGridArrowDown = MasuUiFactory.CreateText(selectorGo.transform, "GridDown", "▼",
@@ -811,7 +903,7 @@ namespace Masu.UI
                     MasuRankingLayout.RowFontSize, RankingTextWhite, TextAnchor.MiddleCenter);
                 StyleRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
                 MasuUiFactory.PlaceTopCenter(_rankingRows[i].rectTransform,
-                    MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
+                    MasuRankingLayout.RowStartYClamped - i * MasuRankingLayout.RowLineHeight,
                     MasuRankingLayout.RowWidth, MasuRankingLayout.RankingRowHeight);
             }
 
@@ -830,16 +922,16 @@ namespace Masu.UI
             var rootImage = _gameRoot.GetComponent<Image>();
             if (rootImage != null)
                 rootImage.color = Color.clear;
-            var bg = CreateTitleArtImage(_gameRoot, "GameBg", "title_game_bg");
-            if (bg != null)
+            _gameBgImage = CreateTitleArtImage(_gameRoot, "GameBg", "title_game_bg");
+            if (_gameBgImage != null)
             {
-                bg.transform.SetAsFirstSibling();
-                bg.type = Image.Type.Simple;
-                MasuUiFactory.StretchFullBleed(bg.rectTransform, BackdropBleedPixels);
+                _gameBgImage.transform.SetAsFirstSibling();
+                _gameBgImage.type = Image.Type.Simple;
+                MasuUiFactory.StretchFullBleed(_gameBgImage.rectTransform, BackdropBleedPixels);
             }
 
-            BuildGameOverlayGif(bg != null ? 1 : 0);
-            BuildDopamineScreenFx(bg != null ? 2 : 1);
+            BuildGameOverlayGif(_gameBgImage != null ? 1 : 0);
+            BuildDopamineScreenFx(_gameBgImage != null ? 2 : 1);
         }
 
         private void BuildDopamineScreenFx(int siblingIndex)
@@ -855,20 +947,29 @@ namespace Masu.UI
             _gridView?.SetScreenFx(_dopamineScreenFx);
         }
 
-        /// <summary>背景の上・UI枠の下に GIF オーバーレイ（花びら等）。</summary>
+        /// <summary>背景の上・UI枠の下にオーバーレイ（和風 GIF / クール雪など）。</summary>
         private void BuildGameOverlayGif(int siblingIndex)
         {
-            if (Resources.Load<TextAsset>("TitleArt/title_game_overlay.gif") == null)
-                return;
-
-            var go = new GameObject("GameOverlayGif", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
+            var gifGo = new GameObject("GameOverlayGif", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
                 typeof(MasuUiGifPlayer));
-            go.transform.SetParent(_gameRoot, false);
-            go.transform.SetSiblingIndex(siblingIndex);
-            var img = go.GetComponent<Image>();
-            img.color = Color.white;
-            img.raycastTarget = false;
-            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            gifGo.transform.SetParent(_gameRoot, false);
+            gifGo.transform.SetSiblingIndex(siblingIndex);
+            var gifImg = gifGo.GetComponent<Image>();
+            gifImg.color = Color.white;
+            gifImg.raycastTarget = false;
+            MasuUiFactory.StretchFullBleed(gifGo.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _gameOverlayGif = gifGo.GetComponent<MasuUiGifPlayer>();
+            gifGo.SetActive(false);
+
+            var staticGo = new GameObject("GameOverlayStatic", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(MasuThemeOverlayScrollMotion));
+            staticGo.transform.SetParent(_gameRoot, false);
+            staticGo.transform.SetSiblingIndex(siblingIndex);
+            _gameOverlayStatic = staticGo.GetComponent<Image>();
+            _gameOverlayStatic.color = Color.white;
+            _gameOverlayStatic.raycastTarget = false;
+            MasuUiFactory.StretchFullBleed(staticGo.GetComponent<RectTransform>(), BackdropBleedPixels);
+            staticGo.SetActive(false);
         }
 
         private void BuildGameLayer()
@@ -1129,6 +1230,10 @@ namespace Masu.UI
             _screen = screen;
             _menuRoot.gameObject.SetActive(screen != AppScreen.Game);
             _gameRoot.gameObject.SetActive(screen == AppScreen.Game);
+            if (screen == AppScreen.Game)
+                MasuThemeManager.ApplyGameplayLook();
+            else
+                MasuThemeManager.ApplyMainMenuLook();
             foreach (var kv in _menuPanels)
                 kv.Value.SetActive(kv.Key == screen);
             if (_titleBackdrop != null)
@@ -1336,7 +1441,7 @@ namespace Masu.UI
             else if (screen == AppScreen.Options)
                 CollectLabelEntranceTargets(_optionsLabels, targets);
             else if (screen == AppScreen.OptionsVisual)
-                CollectLabelEntranceTargets(_optionsVisualLabels, targets);
+                _visualThemeSelect?.CollectEntranceTargets(targets);
             else if (screen == AppScreen.OptionsEffects)
                 CollectLabelEntranceTargets(_optionsEffectsLabels, targets);
         }
@@ -1557,7 +1662,6 @@ namespace Masu.UI
         {
             AppScreen.Title => _titleLabels,
             AppScreen.Options => _optionsLabels,
-            AppScreen.OptionsVisual => _optionsVisualLabels,
             AppScreen.OptionsEffects => _optionsEffectsLabels,
             _ => null
         };
@@ -1616,17 +1720,14 @@ namespace Masu.UI
                 HighlightTitleMenuList();
             if (_screen == AppScreen.Options)
                 RefreshOptionsMenuHighlights();
-            if (_screen == AppScreen.OptionsVisual)
-                RefreshOptionsVisualMenuHighlights();
             if (_screen == AppScreen.OptionsEffects)
                 RefreshOptionsEffectsMenuHighlights();
 
             if (_screen == AppScreen.ScoreRanking && _rankingOpTabs != null)
             {
                 HighlightRankingOpTabs();
-                if (_rankingGridLineLabel != null)
+                if (_rankingGridLineLabel != null && TryGetRankingBoard(_rankingBoardCursor, out var board))
                 {
-                    var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
                     _rankingGridLineLabel.text = FormatRankingGridLine(board.PlaySize, board.Mode);
                     StyleRankingGridLine(_rankingGridLineLabel);
                     CacheLabelBasePositions(_rankingGridSelectLabels);
@@ -1640,8 +1741,8 @@ namespace Masu.UI
         private void RefreshRankingTable()
         {
             if (_rankingRows == null) return;
+            if (!TryGetRankingBoard(_rankingBoardCursor, out var board)) return;
             var op = Operations[_rankingOpCursor];
-            var board = PlayBoardCatalog.RankingBoards[_rankingBoardCursor];
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
             for (var i = 0; i < _rankingRows.Length; i++)
             {
@@ -2560,16 +2661,12 @@ namespace Masu.UI
         private void RefreshOptionsMenuHighlights() =>
             HighlightOverlayMenuList(_optionsLabels, _optionsCursor, OptionsMenuItems);
 
-        private void RefreshOptionsVisualMenuHighlights() =>
-            HighlightOverlayMenuList(_optionsVisualLabels, _optionsVisualCursor, OptionsVisualMenuItems);
-
         private void RefreshOptionsEffectsMenuHighlights() =>
             HighlightOverlayMenuList(_optionsEffectsLabels, _optionsEffectsCursor, OptionsEffectsMenuLabels());
 
         private void OpenOptionsVisualScreen()
         {
-            _optionsVisualCursor = 0;
-            ForgetListCursor(_optionsVisualLabels);
+            _visualThemeSelect?.SyncToActiveTheme();
             ShowScreen(AppScreen.OptionsVisual);
         }
 
@@ -2607,13 +2704,7 @@ namespace Masu.UI
                 ShowScreen(AppScreen.Title);
         }
 
-        private void HandleOptionsVisualInput()
-        {
-            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-                DecideOverlay(_optionsVisualLabels[0], () => ShowScreen(AppScreen.Options));
-            else if (Input.GetKeyDown(KeyCode.Escape))
-                ShowScreen(AppScreen.Options);
-        }
+        private void HandleOptionsVisualInput() => _visualThemeSelect?.HandleInput();
 
         private void HandleOptionsEffectsInput()
         {
@@ -2818,18 +2909,20 @@ namespace Masu.UI
             else if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 var n = PlayBoardCatalog.RankingBoards.Length;
-                _rankingBoardCursor = (_rankingBoardCursor - 1 + n) % n;
-                RefreshMenuHighlights();
+                if (n > 0)
+                {
+                    _rankingBoardCursor = (_rankingBoardCursor - 1 + n) % n;
+                    RefreshMenuHighlights();
+                }
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 var n = PlayBoardCatalog.RankingBoards.Length;
-                _rankingBoardCursor = (_rankingBoardCursor + 1) % n;
-                RefreshMenuHighlights();
-            }
-            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
-            {
-                Decide(_rankingOpTabs[_rankingOpCursor], () => { }, MasuTheme.CursorGold);
+                if (n > 0)
+                {
+                    _rankingBoardCursor = (_rankingBoardCursor + 1) % n;
+                    RefreshMenuHighlights();
+                }
             }
             else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
         }

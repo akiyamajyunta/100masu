@@ -2,42 +2,46 @@ using UnityEngine;
 
 namespace Masu.UI
 {
+    /// <summary>現在アクティブなテーマ色。MasuThemeManager が <see cref="ApplyPalette"/> で更新する。</summary>
     public static class MasuTheme
     {
-        public static readonly Color Bg = Hex("#162030");
-        public static readonly Color ResultBg = Hex("#ffffff");
-        public static readonly Color ResultText = Hex("#1a1a1a");
-        public static readonly Color ResultArrow = Hex("#2563eb");
-        public static readonly Color MainPanel = Hex("#2a1620");
-        public static readonly Color MainInner = Hex("#221e20");
-        public static readonly Color StatusInner = Hex("#241c1e");
-        public static readonly Color GaugeTimer = Hex("#5a8cc8");
-        public static readonly Color GaugeBg = Hex("#141820");
-        public static readonly Color BorderDark = Hex("#6e2a30");
-        public static readonly Color Text = Hex("#f5e6c8");
-        public static readonly Color TextDim = Hex("#b4a894");
-        public static readonly Color CursorGold = Hex("#e6c85a");
-        public static readonly Color BorderGold = Hex("#ccac4e");
-        /// <summary>プレイ中の盤面・スコア枠・マス目の区切り線。</summary>
-        public static readonly Color GameFrameBorder = Color.white;
-        /// <summary>プレイ中枠の内側（黒 40%）。</summary>
-        public static readonly Color GameFrameInner = new Color(0f, 0f, 0f, 0.4f);
-        public static readonly Color CellEmpty = Hex("#1e2838");
-        public static readonly Color CellQuickCorrect = Hex("#1a4030");
-        public static readonly Color CellQuickWrong = Hex("#4a2028");
-        public static readonly Color CellBorder = Hex("#3a4558");
-        public static readonly Color HeaderSlot = Hex("#2a3548");
-        public static readonly Color HeaderNum = Hex("#3d4a62");
-        public static readonly Color PlusBg = Hex("#F4B183");
-        /// <summary>盤面セルの数字・四則記号。</summary>
-        public static readonly Color GridCellText = Hex("#FFFFFF");
-        public static readonly Color CorrectMark = Hex("#6ecf8a");
-        public static readonly Color WrongMark = Hex("#e86a6a");
-        public static readonly Color DopamineCharredBg = Hex("#0d0d0d");
-        public static readonly Color DopamineCharredEdge = Hex("#2a1810");
-        public static readonly Color FocusRing = Hex("#e6c85a");
-        public static readonly Color FocusRingBright = Hex("#5cff9a");
-        public static readonly Color FocusRingDim = Hex("#2eb86a");
+        private static MasuThemePalette _palette = MasuThemePalette.Wafuu();
+
+        public static void ApplyPalette(MasuThemePalette palette) => _palette = palette;
+
+        public static Color Bg => _palette.Bg;
+        public static Color ResultBg => _palette.ResultBg;
+        public static Color ResultText => _palette.ResultText;
+        public static Color ResultArrow => _palette.ResultArrow;
+        public static Color MainPanel => _palette.MainPanel;
+        public static Color MainInner => _palette.MainInner;
+        public static Color StatusInner => _palette.StatusInner;
+        public static Color GaugeTimer => _palette.GaugeTimer;
+        public static Color GaugeBg => _palette.GaugeBg;
+        public static Color BorderDark => _palette.BorderDark;
+        public static Color Text => _palette.Text;
+        public static Color TextDim => _palette.TextDim;
+        public static Color CursorGold => _palette.CursorGold;
+        public static Color BorderGold => _palette.BorderGold;
+        public static Color GameFrameBorder => _palette.GameFrameBorder;
+        public static Color GameFrameInner => _palette.GameFrameInner;
+        public static Color CellEmpty => _palette.CellEmpty;
+        public static Color CellQuickCorrect => _palette.CellQuickCorrect;
+        public static Color CellQuickWrong => _palette.CellQuickWrong;
+        public static Color CellBorder => _palette.CellBorder;
+        public static Color HeaderSlot => _palette.HeaderSlot;
+        public static Color HeaderNum => _palette.HeaderNum;
+        public static Color PlusBg => _palette.PlusBg;
+        public static Color GridCellText => _palette.GridCellText;
+        public static Color CorrectMark => _palette.CorrectMark;
+        public static Color WrongMark => _palette.WrongMark;
+        public static Color DopamineCharredBg => _palette.DopamineCharredBg;
+        public static Color DopamineCharredEdge => _palette.DopamineCharredEdge;
+        public static Color FocusRing => _palette.FocusRing;
+        public static Color FocusRingBright => _palette.FocusRingBright;
+        public static Color FocusRingDim => _palette.FocusRingDim;
+        public static Color MenuTitleText => _palette.MenuTitleText;
+        public static Color MenuTitleTextIdle => _palette.MenuTitleTextIdle;
 
         public static Color Hex(string hex)
         {

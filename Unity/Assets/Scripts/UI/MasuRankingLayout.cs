@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace Masu.UI
 {
     public static class MasuRankingLayout
@@ -35,8 +37,19 @@ namespace Masu.UI
             GridSelectorTopY - GridSelectorBlockHeight - GridSelectorToRowsGap;
 
         /// <summary>下部操作ガイドの下端からの余白（記録一覧と重ならないよう確保）。</summary>
-        public const float HintBottomInset = 48f;
+        public const float HintBottomInset = 56f;
         public const float HintHeight = 36f;
+        /// <summary>記録10行目の下端とヒント上端の最小間隔（設計座標）。</summary>
+        public const float RankingListBottomClearance = 20f;
+
+        /// <summary>1080p 基準で No10 と下部ガイドが重ならない RowStartY の上限（これより下に開始しない）。</summary>
+        public const float DesignCanvasHeight = 1080f;
+
+        public static float RowStartYClamped =>
+            Mathf.Max(
+                GridSelectorTopY - GridSelectorBlockHeight - GridSelectorToRowsGap,
+                -(DesignCanvasHeight - HintBottomInset - HintHeight - RankingListBottomClearance)
+                + (9f * RowLineHeight + RankingRowHeight));
 
         public const float RowWidth = 980f;
     }

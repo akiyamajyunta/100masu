@@ -38,7 +38,7 @@ namespace MG.GIF
         {
             var tex = new Texture2D( Width, Height, TextureFormat.ARGB32, false )
             {
-                filterMode = FilterMode.Point,
+                filterMode = FilterMode.Bilinear,
                 wrapMode   = TextureWrapMode.Clamp
             };
 
