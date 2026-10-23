@@ -24,6 +24,9 @@ namespace Masu.UI
         public string ActiveResourcePath => _resourcePath;
         public bool IsPlaying => _routine != null;
 
+        /// <summary>中央配置オーバーレイなどでスプライトのアスペクト比を保つ。</summary>
+        public bool PreserveAspect { get; set; }
+
         void Awake()
         {
             _image = GetComponent<UnityEngine.UI.Image>();
@@ -62,6 +65,7 @@ namespace Masu.UI
 
         public void StopPlayback()
         {
+            PreserveAspect = false;
             _pendingResourcePath = null;
             StopCoroutineIfRunning();
             ClearSprite();
@@ -144,7 +148,7 @@ namespace Masu.UI
                 MasuThemePlayfieldVisualLayout.OverlaySpritePixelsPerUnit);
             _image.sprite = _sprite;
             _image.type = UnityEngine.UI.Image.Type.Simple;
-            _image.preserveAspect = false;
+            _image.preserveAspect = PreserveAspect;
             _image.color = Color.white;
             _image.enabled = true;
             if (_image.canvasRenderer != null)

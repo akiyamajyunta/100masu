@@ -8,15 +8,18 @@ namespace Masu.UI
         public MasuThemeGameOverlayKind Kind { get; }
         public string ResourceKey { get; }
         public float ScrollSpeedPixelsPerSecond { get; }
+        public MasuThemeGameOverlayLayout Layout { get; }
 
         public MasuThemeGameOverlayConfig(
             MasuThemeGameOverlayKind kind,
             string resourceKey,
-            float scrollSpeedPixelsPerSecond = 0f)
+            float scrollSpeedPixelsPerSecond = 0f,
+            MasuThemeGameOverlayLayout layout = MasuThemeGameOverlayLayout.FullBleed)
         {
             Kind = kind;
             ResourceKey = resourceKey ?? "";
             ScrollSpeedPixelsPerSecond = scrollSpeedPixelsPerSecond;
+            Layout = layout;
         }
 
         public static MasuThemeGameOverlayConfig None => new(MasuThemeGameOverlayKind.None, "");
@@ -77,7 +80,8 @@ namespace Masu.UI
                 if (MasuThemeResourceCache.TryGetGifAsset(def.GameOverlayGifResource, out _))
                     return new MasuThemeGameOverlayConfig(
                         MasuThemeGameOverlayKind.GifBytes,
-                        def.GameOverlayGifResource);
+                        def.GameOverlayGifResource,
+                        layout: def.GameOverlayLayout);
 
                 var staticFallback = StripGifExtension(def.GameOverlayGifResource);
                 if (MasuThemeResourceCache.TryGetTexture(staticFallback, out _))
@@ -87,7 +91,8 @@ namespace Masu.UI
                     return new MasuThemeGameOverlayConfig(
                         MasuThemeGameOverlayKind.StaticTexture,
                         staticFallback,
-                        def.GameOverlayScrollSpeed);
+                        def.GameOverlayScrollSpeed,
+                        def.GameOverlayLayout);
                 }
             }
 
@@ -95,7 +100,11 @@ namespace Masu.UI
         }
 
         private static MasuThemeGameOverlayConfig Static(MasuThemeDefinition def) =>
-            new(MasuThemeGameOverlayKind.StaticTexture, def.GameOverlayTextureResource, def.GameOverlayScrollSpeed);
+            new(
+                MasuThemeGameOverlayKind.StaticTexture,
+                def.GameOverlayTextureResource,
+                def.GameOverlayScrollSpeed,
+                def.GameOverlayLayout);
 
         private static MasuThemeGameOverlayConfig FromExplicitKind(
             MasuThemeGameOverlayKind kind,

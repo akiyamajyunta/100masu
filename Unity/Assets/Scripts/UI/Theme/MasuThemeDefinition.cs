@@ -33,6 +33,8 @@ namespace Masu.UI
         public string GameOverlayTextureResource = "";
         [Tooltip("静止オーバーレイを縦スクロール（px/s）。0 で停止。")]
         public float GameOverlayScrollSpeed = 0f;
+        [Tooltip("GIF オーバーレイの配置（和風=全面、仏=中央など）。")]
+        public MasuThemeGameOverlayLayout GameOverlayLayout = MasuThemeGameOverlayLayout.FullBleed;
         public string TitleSidePanelResource = "title_panel";
         public string InstructionBannerResource = "title_instruction_banner";
         public string SelectBarResource = "title_select_bar";

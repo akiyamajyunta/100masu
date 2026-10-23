@@ -14,8 +14,8 @@ namespace Masu.UI
         public GameOfLifeBackground GameOfLife;
         public MandelbrotBackground Mandelbrot;
         public JuliaBackground Julia;
-        public PenroseBackground Penrose;
         public MasuUiGifPlayer GameOverlayGif;
+        public MasuThemeBuddhaMandalaOrbitView GameBuddhaMandalaOrbit;
         public Image GameOverlayStatic;
         /// <summary>動画オーバーレイ（Video パッケージ導入後に <see cref="MasuThemeOverlayVideoHost"/> を割当）。</summary>
         public MasuThemeOverlayVideoHost GameOverlayVideo;

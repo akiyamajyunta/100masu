@@ -100,8 +100,8 @@ namespace Masu.UI
         private GameOfLifeBackground _gameOfLifeBackground;
         private MandelbrotBackground _mandelbrotBackground;
         private JuliaBackground _juliaBackground;
-        private PenroseBackground _penroseBackground;
         private MasuUiGifPlayer _gameOverlayGif;
+        private MasuThemeBuddhaMandalaOrbitView _gameBuddhaMandalaOrbit;
         private Image _gameOverlayStatic;
         private Coroutine _forestHighlightRoutine;
         private Coroutine _screenEntranceRoutine;
@@ -262,8 +262,8 @@ namespace Masu.UI
                 GameOfLife = _gameOfLifeBackground,
                 Mandelbrot = _mandelbrotBackground,
                 Julia = _juliaBackground,
-                Penrose = _penroseBackground,
                 GameOverlayGif = _gameOverlayGif,
+                GameBuddhaMandalaOrbit = _gameBuddhaMandalaOrbit,
                 GameOverlayStatic = _gameOverlayStatic,
                 TitleSidePanel = _titleSidePanel,
             };
@@ -930,7 +930,17 @@ namespace Masu.UI
             var rootImage = _gameRoot.GetComponent<Image>();
             if (rootImage != null)
                 rootImage.color = Color.clear;
-            _gameBgImage = CreateTitleArtImage(_gameRoot, "GameBg", "title_game_bg");
+
+            var motionGo = new GameObject(
+                "GamePlayfieldBackdropRoot",
+                typeof(RectTransform),
+                typeof(MasuThemeBuddhaBackdropMotion));
+            motionGo.transform.SetParent(_gameRoot, false);
+            motionGo.transform.SetAsFirstSibling();
+            var backdropRoot = motionGo.GetComponent<RectTransform>();
+            MasuUiFactory.StretchFullBleed(backdropRoot, BackdropBleedPixels);
+
+            _gameBgImage = CreateTitleArtImage(backdropRoot, "GameBg", "title_game_bg");
             if (_gameBgImage != null)
             {
                 _gameBgImage.transform.SetAsFirstSibling();
@@ -938,55 +948,43 @@ namespace Masu.UI
                 MasuUiFactory.StretchFullBleed(_gameBgImage.rectTransform, BackdropBleedPixels);
             }
 
-            BuildGameOfLifeBackground(_gameBgImage != null ? 1 : 0);
-            BuildMandelbrotBackground(_gameBgImage != null ? 1 : 0);
-            BuildJuliaBackground(_gameBgImage != null ? 1 : 0);
-            BuildPenroseBackground(_gameBgImage != null ? 1 : 0);
-            BuildGameOverlayGif(_gameBgImage != null ? 2 : 1);
-            BuildDopamineScreenFx(_gameBgImage != null ? 3 : 2);
+            BuildGameOfLifeBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildMandelbrotBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildJuliaBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildGameOverlayGif(backdropRoot, _gameBgImage != null ? 2 : 1);
+            BuildDopamineScreenFx(1);
         }
 
-        private void BuildGameOfLifeBackground(int siblingIndex)
+        private void BuildGameOfLifeBackground(Transform backdropRoot, int siblingIndex)
         {
             var go = new GameObject("GameOfLifeBg", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(RawImage), typeof(GameOfLifeBackground));
-            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetParent(backdropRoot, false);
             go.transform.SetSiblingIndex(siblingIndex);
             MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
             _gameOfLifeBackground = go.GetComponent<GameOfLifeBackground>();
             go.SetActive(false);
         }
 
-        private void BuildMandelbrotBackground(int siblingIndex)
+        private void BuildMandelbrotBackground(Transform backdropRoot, int siblingIndex)
         {
             var go = new GameObject("MandelbrotBg", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(RawImage), typeof(MandelbrotBackground));
-            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetParent(backdropRoot, false);
             go.transform.SetSiblingIndex(siblingIndex);
             MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
             _mandelbrotBackground = go.GetComponent<MandelbrotBackground>();
             go.SetActive(false);
         }
 
-        private void BuildJuliaBackground(int siblingIndex)
+        private void BuildJuliaBackground(Transform backdropRoot, int siblingIndex)
         {
             var go = new GameObject("JuliaBg", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(RawImage), typeof(JuliaBackground));
-            go.transform.SetParent(_gameRoot, false);
+            go.transform.SetParent(backdropRoot, false);
             go.transform.SetSiblingIndex(siblingIndex);
             MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
             _juliaBackground = go.GetComponent<JuliaBackground>();
-            go.SetActive(false);
-        }
-
-        private void BuildPenroseBackground(int siblingIndex)
-        {
-            var go = new GameObject("PenroseBg", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(RawImage), typeof(PenroseBackground));
-            go.transform.SetParent(_gameRoot, false);
-            go.transform.SetSiblingIndex(siblingIndex);
-            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
-            _penroseBackground = go.GetComponent<PenroseBackground>();
             go.SetActive(false);
         }
 
@@ -1004,22 +1002,32 @@ namespace Masu.UI
         }
 
         /// <summary>背景の上・UI枠の下にオーバーレイ（和風 GIF / クール雪など）。</summary>
-        private void BuildGameOverlayGif(int siblingIndex)
+        private void BuildGameOverlayGif(Transform backdropRoot, int siblingIndex)
         {
             var gifGo = new GameObject("GameOverlayGif", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
                 typeof(MasuUiGifPlayer));
-            gifGo.transform.SetParent(_gameRoot, false);
+            gifGo.transform.SetParent(backdropRoot, false);
             gifGo.transform.SetSiblingIndex(siblingIndex);
             var gifImg = gifGo.GetComponent<Image>();
             gifImg.color = Color.white;
             gifImg.raycastTarget = false;
-            MasuUiFactory.StretchFullBleed(gifGo.GetComponent<RectTransform>(), BackdropBleedPixels);
             _gameOverlayGif = gifGo.GetComponent<MasuUiGifPlayer>();
             gifGo.SetActive(false);
 
+            var mandalaGo = new GameObject(
+                "GameBuddhaMandalaOrbit",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(RawImage),
+                typeof(MasuThemeBuddhaMandalaOrbitView));
+            mandalaGo.transform.SetParent(backdropRoot, false);
+            mandalaGo.transform.SetSiblingIndex(siblingIndex);
+            _gameBuddhaMandalaOrbit = mandalaGo.GetComponent<MasuThemeBuddhaMandalaOrbitView>();
+            mandalaGo.SetActive(false);
+
             var staticGo = new GameObject("GameOverlayStatic", typeof(RectTransform), typeof(CanvasRenderer),
                 typeof(Image), typeof(MasuThemeOverlayScrollMotion));
-            staticGo.transform.SetParent(_gameRoot, false);
+            staticGo.transform.SetParent(backdropRoot, false);
             staticGo.transform.SetSiblingIndex(siblingIndex);
             _gameOverlayStatic = staticGo.GetComponent<Image>();
             _gameOverlayStatic.color = Color.white;

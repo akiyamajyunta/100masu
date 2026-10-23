@@ -23,6 +23,13 @@ namespace Masu.UI
         {
             MasuThemeCatalog.EnsureLoaded();
             var id = PlayerPrefs.GetString(PrefKeyThemeId, MainMenuThemeId);
+            if (id == "phonon")
+            {
+                id = MainMenuThemeId;
+                PlayerPrefs.SetString(PrefKeyThemeId, id);
+                PlayerPrefs.Save();
+            }
+
             ActiveDefinition = MasuThemeCatalog.GetById(id);
             ApplyMainMenuLook();
         }

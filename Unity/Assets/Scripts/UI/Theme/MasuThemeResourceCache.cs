@@ -22,6 +22,9 @@ namespace Masu.UI
             if (!string.IsNullOrEmpty(visual.BackgroundResourceKey))
                 TryGetTexture(visual.BackgroundResourceKey, out _);
 
+            if (definition.ThemeId == "buddha")
+                TryGetTexture(MasuThemePlayfieldVisualLayout.BuddhaMandalaTextureResource, out _);
+
             switch (visual.Overlay.Kind)
             {
                 case MasuThemeGameOverlayKind.GifBytes:

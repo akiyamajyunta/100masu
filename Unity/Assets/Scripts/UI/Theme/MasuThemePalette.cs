@@ -176,29 +176,6 @@ namespace Masu.UI
             return p;
         }
 
-        public static MasuThemePalette Phonon()
-        {
-            var p = Wafuu();
-            p.Bg = Hex("#0d1117");
-            p.MainPanel = Hex("#141a24");
-            p.Text = Hex("#e8f4ff");
-            p.TextDim = Hex("#6a8aa8");
-            p.CursorGold = Hex("#00e5ff");
-            p.BorderGold = Hex("#00c8e0");
-            p.GameFrameBorder = Hex("#00e5ff");
-            p.CellEmpty = Hex("#0a0e14");
-            p.HeaderSlot = Hex("#121820");
-            p.HeaderNum = Hex("#1c2838");
-            p.PlusBg = Hex("#7b5cff");
-            p.GridCellText = Hex("#f0f8ff");
-            p.FocusRing = Hex("#00e5ff");
-            p.FocusRingBright = Hex("#88f0ff");
-            p.FocusRingDim = Hex("#0088a0");
-            p.ThemeCardTint = new Color(0.06f, 0.14f, 0.22f, 0.95f);
-            p.ThemeCardSelectedBorder = Hex("#00e5ff");
-            return p;
-        }
-
         public static MasuThemePalette Corona()
         {
             var p = Wafuu();
@@ -219,6 +196,29 @@ namespace Masu.UI
             p.FocusRingDim = Hex("#cc6600");
             p.ThemeCardTint = new Color(0.45f, 0.18f, 0.06f, 0.95f);
             p.ThemeCardSelectedBorder = Hex("#ffb347");
+            return p;
+        }
+
+        public static MasuThemePalette Buddha()
+        {
+            var p = Wafuu();
+            p.Bg = Hex("#0c0a08");
+            p.MainPanel = Hex("#1a1410");
+            p.Text = Hex("#f5efe6");
+            p.TextDim = Hex("#a89478");
+            p.CursorGold = Hex("#d4af37");
+            p.BorderGold = Hex("#8b6914");
+            p.GameFrameBorder = Hex("#c9a227");
+            p.CellEmpty = Hex("#14100c");
+            p.HeaderSlot = Hex("#221a14");
+            p.HeaderNum = Hex("#3d2e1f");
+            p.PlusBg = Hex("#b8860b");
+            p.GridCellText = Hex("#fff8ee");
+            p.FocusRing = Hex("#e8c547");
+            p.FocusRingBright = Hex("#fff0a8");
+            p.FocusRingDim = Hex("#6b4f12");
+            p.ThemeCardTint = new Color(0.22f, 0.16f, 0.08f, 0.95f);
+            p.ThemeCardSelectedBorder = Hex("#d4af37");
             return p;
         }
 

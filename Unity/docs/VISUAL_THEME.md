@@ -82,7 +82,9 @@
 | `cyber` | サイバー | ライフゲーム背景（`GameOfLifeBackground`）＋ネオン系パレット |
 | `corona` | コロナ | マンデルブロ背景（`MandelbrotBackground`）＋暖色パレット |
 | `cosmo` | コスモ | ジュリア背景（`JuliaBackground` / `julia-background.js` 相当）＋シアン系パレット |
-| `phonon` | フォノン | ペンローズ格子背景（`PenroseBackground`）＋シアン格子線パレット |
 | `pop` | ポップ | パステル系パレット |
+| `buddha` | 仏 | 涅槃像＋右下曼荼羅（`theme_buddha_mandala.png`＋`MasuThemeBuddhaMandalaOrbitView`）。`Unity/docs/BUDDHA_MANDALA_ORBIT.md` |
 
 和風以外は `title_photo` / `title_game_bg` を割り当てるか、SO で専用 PNG を指定してください。
+
+GIF オーバーレイの配置は `MasuThemeDefinition.GameOverlayLayout`（`FullBleed` / `CenterFit` / `BottomRightFit`）で指定します。

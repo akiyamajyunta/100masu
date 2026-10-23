@@ -19,7 +19,7 @@ namespace Masu.UI
 
             ApplyBackground(visual);
             StopOverlayPlayback();
-            ApplyOverlay(visual.Overlay);
+            ApplyOverlay(visual.Overlay, definition);
         }
 
         public void StopGameplayOverlays()
@@ -42,9 +42,6 @@ namespace Masu.UI
                     return;
                 case MasuThemeGameBackgroundKind.Julia:
                     ShowJulia(visual.BackgroundFallback);
-                    return;
-                case MasuThemeGameBackgroundKind.Penrose:
-                    ShowPenrose(visual.BackgroundFallback);
                     return;
             }
 
@@ -99,23 +96,11 @@ namespace Masu.UI
             julia.PlayBackground();
         }
 
-        private void ShowPenrose(Color fallback)
-        {
-            var penrose = _bindings?.Penrose;
-            if (penrose == null) return;
-
-            PrepareBackdropFallback(fallback);
-            penrose.gameObject.SetActive(true);
-            PinProceduralAboveBackground(penrose.transform);
-            penrose.PlayBackground();
-        }
-
         private void HideProceduralBackgrounds()
         {
             HideGameOfLife();
             HideMandelbrot();
             HideJulia();
-            HidePenrose();
         }
 
         private void HideGameOfLife()
@@ -142,16 +127,19 @@ namespace Masu.UI
             julia.gameObject.SetActive(false);
         }
 
-        private void HidePenrose()
+        private void ApplyOverlay(MasuThemeGameOverlayConfig overlay, MasuThemeDefinition definition)
         {
-            var penrose = _bindings?.Penrose;
-            if (penrose == null) return;
-            penrose.StopBackground();
-            penrose.gameObject.SetActive(false);
-        }
+            if (definition?.ThemeId == "buddha")
+            {
+                ShowBuddhaMandalaOrbit(overlay.Kind == MasuThemeGameOverlayKind.None
+                    ? new MasuThemeGameOverlayConfig(
+                        MasuThemeGameOverlayKind.GifBytes,
+                        "",
+                        layout: MasuThemeGameOverlayLayout.BuddhaMandalaOnGameBackground)
+                    : overlay);
+                return;
+            }
 
-        private void ApplyOverlay(MasuThemeGameOverlayConfig overlay)
-        {
             switch (overlay.Kind)
             {
                 case MasuThemeGameOverlayKind.None:
@@ -160,7 +148,7 @@ namespace Masu.UI
                     ShowStaticOverlay(overlay);
                     return;
                 case MasuThemeGameOverlayKind.GifBytes:
-                    ShowGifOverlay(overlay.ResourceKey);
+                    ShowGifOverlay(overlay);
                     return;
                 case MasuThemeGameOverlayKind.Video:
                     ShowVideoOverlay(overlay.ResourceKey);
@@ -174,6 +162,7 @@ namespace Masu.UI
             if (img == null) return;
 
             SetGifLayerActive(false);
+            SetBuddhaMandalaOrbitActive(false);
             SetVideoLayerActive(false);
             MasuThemeBackdropApplier.ApplyOverlay(img, overlay.ResourceKey);
             img.gameObject.SetActive(true);
@@ -188,7 +177,7 @@ namespace Masu.UI
                 scroll.Stop();
         }
 
-        private void ShowGifOverlay(string gifFileName)
+        private void ShowGifOverlay(MasuThemeGameOverlayConfig overlay)
         {
             var player = _bindings?.GameOverlayGif;
             if (player == null) return;
@@ -196,17 +185,40 @@ namespace Masu.UI
             StopStaticScroll();
             SetStaticLayerActive(false);
             SetVideoLayerActive(false);
-
+            SetBuddhaMandalaOrbitActive(false);
+            var gifFileName = overlay.ResourceKey;
             if (!MasuThemeResourceCache.TryGetGifAsset(gifFileName, out _))
             {
                 Debug.LogWarning($"[MasuTheme] Game overlay GIF not found: TitleArt/{gifFileName}");
                 return;
             }
 
+            var rt = player.GetComponent<RectTransform>();
+            rt.localScale = Vector3.one;
+            rt.localEulerAngles = Vector3.zero;
+            MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
+            player.PreserveAspect = overlay.Layout is MasuThemeGameOverlayLayout.CenterFit
+                or MasuThemeGameOverlayLayout.BottomRightFit;
             var path = MasuThemeResourceCache.TitleArtPath(gifFileName);
-            player.Play(path);
             player.gameObject.SetActive(true);
+            player.Play(path);
+            MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
             PinLayerAboveBackground(player.transform);
+        }
+
+        private void ShowBuddhaMandalaOrbit(MasuThemeGameOverlayConfig overlay)
+        {
+            var view = _bindings?.GameBuddhaMandalaOrbit;
+            if (view == null) return;
+
+            StopStaticScroll();
+            SetStaticLayerActive(false);
+            SetVideoLayerActive(false);
+            SetGifLayerActive(false);
+            _bindings?.GameOverlayGif?.StopPlayback();
+
+            PinMandalaAboveGameBackground(view.transform);
+            view.Show(overlay.Layout);
         }
 
         private void ShowVideoOverlay(string clipKey)
@@ -232,6 +244,7 @@ namespace Masu.UI
             StopStaticScroll();
             SetStaticLayerActive(false);
             SetGifLayerActive(false);
+            SetBuddhaMandalaOrbitActive(false);
             SetVideoLayerActive(false);
 
             _bindings?.GameOverlayGif?.StopPlayback();
@@ -249,6 +262,15 @@ namespace Masu.UI
         {
             if (_bindings?.GameOverlayGif != null)
                 _bindings.GameOverlayGif.gameObject.SetActive(active);
+        }
+
+        private void SetBuddhaMandalaOrbitActive(bool active)
+        {
+            if (_bindings?.GameBuddhaMandalaOrbit == null) return;
+            if (active)
+                _bindings.GameBuddhaMandalaOrbit.gameObject.SetActive(true);
+            else
+                _bindings.GameBuddhaMandalaOrbit.Hide();
         }
 
         private void SetStaticLayerActive(bool active)
@@ -280,6 +302,18 @@ namespace Masu.UI
             layer.SetSiblingIndex(bg.transform.GetSiblingIndex() + 1);
         }
 
+        /// <summary>涅槃背景の直上（パン・ズーム一体）。盤面 UI より背面。</summary>
+        private void PinMandalaAboveGameBackground(Transform layer)
+        {
+            var bg = _bindings?.GameBackground;
+            if (bg == null || layer == null) return;
+
+            if (layer.parent != bg.transform)
+                layer.SetParent(bg.transform, false);
+
+            layer.SetAsLastSibling();
+        }
+
         /// <summary>背景（静止画 or プロシージャル）の真上・100マス盤面より下。</summary>
         private void PinLayerAboveBackground(Transform layer)
         {
@@ -300,9 +334,6 @@ namespace Masu.UI
             var julia = _bindings?.Julia;
             if (julia != null && julia.gameObject.activeSelf)
                 return julia.transform;
-            var penrose = _bindings?.Penrose;
-            if (penrose != null && penrose.gameObject.activeSelf)
-                return penrose.transform;
             return null;
         }
     }

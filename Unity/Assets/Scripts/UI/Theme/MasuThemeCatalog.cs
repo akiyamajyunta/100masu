@@ -63,12 +63,13 @@ namespace Masu.UI
             yield return CreateRuntime("cosmo", "コスモ", MasuThemePalette.Cosmo(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.04f, 0.07f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.Julia);
-            yield return CreateRuntime("phonon", "フォノン", MasuThemePalette.Phonon(),
-                menuPhoto: "", gameBg: "", menuFallback: new Color(0.05f, 0.07f, 0.09f),
-                gameBackgroundKind: MasuThemeGameBackgroundKind.Penrose,
-                gameBackdropFallback: new Color(0.05f, 0.07f, 0.09f));
             yield return CreateRuntime("pop", "ポップ", MasuThemePalette.Pop(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(1f, 0.92f, 0.96f));
+            yield return CreateRuntime("buddha", "仏", MasuThemePalette.Buddha(),
+                menuPhoto: "", gameBg: "theme_buddha_game_bg",
+                overlayGif: "theme_buddha_overlay.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.BuddhaMandalaOnGameBackground,
+                menuFallback: new Color(0.06f, 0.05f, 0.04f));
         }
 
         private static MasuThemeDefinition CreateRuntime(
@@ -82,7 +83,8 @@ namespace Masu.UI
             string overlayTex = "",
             float overlayScrollSpeed = 0f,
             MasuThemeGameBackgroundKind gameBackgroundKind = MasuThemeGameBackgroundKind.Auto,
-            Color? gameBackdropFallback = null)
+            Color? gameBackdropFallback = null,
+            MasuThemeGameOverlayLayout overlayLayout = MasuThemeGameOverlayLayout.FullBleed)
         {
             var def = ScriptableObject.CreateInstance<MasuThemeDefinition>();
             def.name = $"Builtin_{id}";
@@ -95,6 +97,7 @@ namespace Masu.UI
             def.GameOverlayGifResource = overlayGif ?? "";
             def.GameOverlayTextureResource = overlayTex ?? "";
             def.GameOverlayScrollSpeed = overlayScrollSpeed;
+            def.GameOverlayLayout = overlayLayout;
             if (menuFallback.HasValue)
                 def.MenuBackdropFallback = menuFallback.Value;
             if (gameBackdropFallback.HasValue)
