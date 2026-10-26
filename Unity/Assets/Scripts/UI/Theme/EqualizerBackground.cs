@@ -209,7 +209,7 @@ namespace Masu.UI
 
                     float tColor = s / (float)(segments - 1);
                     Color32 core = RainbowAt(tColor);
-                    int by = ComputeSegmentY(padY, innerH, s, segH, segmentGapPixels);
+                    int by = ComputeSegmentY(padY, s, segH, segmentGapPixels);
                     DrawBlock(bx, by, barW, segH, core);
                 }
             }
@@ -231,9 +231,10 @@ namespace Masu.UI
             return segFromBottom + 0.5f < BarLevel(bar, phase, segmentCount);
         }
 
-        static int ComputeSegmentY(int padY, int innerH, int segFromBottom, int segH, int segGap)
+        /// <summary>Texture2D は左下原点。seg 0 を内側下端に置き、上へ積む。</summary>
+        static int ComputeSegmentY(int padY, int segFromBottom, int segH, int segGap)
         {
-            return padY + innerH - (segFromBottom + 1) * segH - segFromBottom * segGap;
+            return padY + segFromBottom * (segH + segGap);
         }
 
         static Color32 RainbowAt(float t)
@@ -260,7 +261,7 @@ namespace Masu.UI
             FillRect(x, y, w, h, core);
             int strip = Mathf.Max(1, Mathf.RoundToInt(h * 0.35f));
             Color32 hi = ScaleColor(core, highlightStrength);
-            FillRect(x, y, w, strip, hi);
+            FillRect(x, y + h - strip, w, strip, hi);
         }
 
         static Color32 ScaleColor(Color32 c, float mul)
