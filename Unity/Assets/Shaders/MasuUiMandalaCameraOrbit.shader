@@ -7,6 +7,7 @@ Shader "Masu/UI/MandalaCameraOrbit"
         _YawDeg ("Yaw Degrees", Float) = 0
         _PitchDeg ("Pitch Degrees", Float) = 0
         _Focal ("Perspective Focal", Float) = 3.2
+        _SpinDeg ("Clockwise Spin Degrees", Float) = 0
         _Pivot ("Pivot UV", Vector) = (0.5, 0.5, 0, 0)
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -64,7 +65,7 @@ Shader "Masu/UI/MandalaCameraOrbit"
             {
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
-                float2 texcoord : TEXCOORD0;
+                float2 meshUv : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -75,8 +76,16 @@ Shader "Masu/UI/MandalaCameraOrbit"
             float _YawDeg;
             float _PitchDeg;
             float _Focal;
+            float _SpinDeg;
             float4 _Pivot;
             float4 _ClipRect;
+
+            float2 RotateClockwise(float2 p, float rad)
+            {
+                float c = cos(rad);
+                float s = sin(rad);
+                return float2(p.x * c + p.y * s, -p.x * s + p.y * c);
+            }
 
             float3 RotateYawPitch(float3 p, float yaw, float pitch)
             {
@@ -95,31 +104,47 @@ Shader "Masu/UI/MandalaCameraOrbit"
                     py.y * sp + py.z * cp);
             }
 
+            float2 WarpMandalaUv(float2 uv)
+            {
+                float yaw = _YawDeg * 0.0174532925;
+                float pitch = _PitchDeg * 0.0174532925;
+                float2 centered = float2(uv.x - _Pivot.x, uv.y - _Pivot.y);
+                centered = RotateClockwise(centered, _SpinDeg * 0.0174532925);
+                float3 p = float3(centered.x, centered.y, 0);
+                float3 r = RotateYawPitch(p, yaw, pitch);
+                float persp = _Focal / (_Focal + r.z);
+                return float2(r.x, r.y) * persp + _Pivot.xy;
+            }
+
             v2f vert(appdata_t v)
             {
                 v2f o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
-                float yaw = _YawDeg * 0.0174532925;
-                float pitch = _PitchDeg * 0.0174532925;
-                float2 uv = v.texcoord;
-                float2 centered = float2(uv.x - _Pivot.x, uv.y - _Pivot.y);
-                float3 p = float3(centered.x, centered.y, 0);
-                float3 r = RotateYawPitch(p, yaw, pitch);
-                float persp = _Focal / (_Focal + r.z);
-                float2 warped = float2(r.x, r.y) * persp + _Pivot.xy;
-
                 o.worldPosition = v.vertex;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.texcoord = warped;
+                o.meshUv = v.texcoord;
                 o.color = v.color * _Color;
                 return o;
             }
 
             fixed4 frag(v2f i) : SV_Target
             {
-                return tex2D(_MainTex, i.texcoord) * i.color;
+                float2 uv = WarpMandalaUv(i.meshUv);
+
+                // Repeat だとはみ出し UV が左下などから巻き戻って見えるため、範囲外は描画しない
+                const float edge = 0.002;
+                float2 in01 = step(float2(edge, edge), uv) * step(uv, float2(1 - edge, 1 - edge));
+                float inside = in01.x * in01.y;
+                if (inside < 0.5)
+                    return fixed4(0, 0, 0, 0);
+
+                fixed4 col = tex2D(_MainTex, uv) * i.color;
+                float2 fade = min(uv, 1 - uv);
+                float edgeFade = saturate(min(fade.x, fade.y) / edge);
+                col.a *= edgeFade;
+                return col;
             }
             ENDCG
         }

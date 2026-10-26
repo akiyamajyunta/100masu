@@ -63,6 +63,10 @@ namespace Masu.UI
             yield return CreateRuntime("cosmo", "コスモ", MasuThemePalette.Cosmo(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.04f, 0.07f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.Julia);
+            yield return CreateRuntime("live", "ライブ", MasuThemePalette.Live(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.06f, 0.13f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.Equalizer,
+                gameBackdropFallback: new Color32(0x0a, 0x10, 0x22, 0xff));
             yield return CreateRuntime("pop", "ポップ", MasuThemePalette.Pop(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(1f, 0.92f, 0.96f));
             yield return CreateRuntime("buddha", "仏", MasuThemePalette.Buddha(),

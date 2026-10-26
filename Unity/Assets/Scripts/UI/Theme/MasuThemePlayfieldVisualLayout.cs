@@ -44,6 +44,8 @@ namespace Masu.UI
         public const float BuddhaMandalaOrbitYawSpeed = 0.21f;
         public const float BuddhaMandalaOrbitPitchSpeed = 0.16f;
         public const float BuddhaMandalaOrbitFocal = 3.2f;
+        /// <summary>曼荼羅テクスチャの時計回り 1 周の秒数。</summary>
+        public const float BuddhaMandalaSpinPeriodSeconds = 60f;
         /// <summary>カメラ周回の回転中心（UV、絵の中心）。</summary>
         public static readonly UnityEngine.Vector2 BuddhaMandalaOrbitPivotUv = new(0.5f, 0.5f);
 

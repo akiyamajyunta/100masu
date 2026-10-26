@@ -32,6 +32,7 @@ Material:
     - _ColorMask: 15
     - _Focal: 3.2
     - _PitchDeg: 0
+    - _SpinDeg: 0
     - _Stencil: 0
     - _StencilComp: 8
     - _StencilOp: 0

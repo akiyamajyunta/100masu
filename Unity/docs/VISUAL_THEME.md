@@ -80,6 +80,7 @@
 | `cool` | クール | `theme_cool_game_bg` + 雪オーバーレイ（GIF があれば GIF、なければ `theme_cool_overlay` PNG） |
 | `modern` | モダン | 単色背景プレビュー（写真キー空） |
 | `cyber` | サイバー | ライフゲーム背景（`GameOfLifeBackground`）＋ネオン系パレット |
+| `live` | ライブ | 虹色イコライザ背景（`EqualizerBackground`）＋紺／ピンク系パレット |
 | `corona` | コロナ | マンデルブロ背景（`MandelbrotBackground`）＋暖色パレット |
 | `cosmo` | コスモ | ジュリア背景（`JuliaBackground` / `julia-background.js` 相当）＋シアン系パレット |
 | `pop` | ポップ | パステル系パレット |

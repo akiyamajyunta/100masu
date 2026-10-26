@@ -14,6 +14,7 @@ namespace Masu.UI
         public GameOfLifeBackground GameOfLife;
         public MandelbrotBackground Mandelbrot;
         public JuliaBackground Julia;
+        public EqualizerBackground Equalizer;
         public MasuUiGifPlayer GameOverlayGif;
         public MasuThemeBuddhaMandalaOrbitView GameBuddhaMandalaOrbit;
         public Image GameOverlayStatic;

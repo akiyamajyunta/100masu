@@ -4,7 +4,7 @@ using UnityEngine.UI;
 namespace Masu.UI
 {
     /// <summary>
-    /// 静止曼荼羅テクスチャにカメラ周回（ヨー／ピッチ）のみ付与。絵は回転しない。
+    /// 曼荼羅の時計回り回転（60 秒／周）＋カメラ周回（ヨー／ピッチ）の疑似 3D。
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     [RequireComponent(typeof(RawImage))]
@@ -17,6 +17,7 @@ namespace Masu.UI
         static readonly int PitchId = Shader.PropertyToID("_PitchDeg");
         static readonly int FocalId = Shader.PropertyToID("_Focal");
         static readonly int PivotId = Shader.PropertyToID("_Pivot");
+        static readonly int SpinId = Shader.PropertyToID("_SpinDeg");
         static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
         static Material s_orbitMaterialTemplate;
@@ -96,6 +97,8 @@ namespace Masu.UI
             _material.SetFloat(FocalId, MasuThemePlayfieldVisualLayout.BuddhaMandalaOrbitFocal);
             var pivot = MasuThemePlayfieldVisualLayout.BuddhaMandalaOrbitPivotUv;
             _material.SetVector(PivotId, new Vector4(pivot.x, pivot.y, 0f, 0f));
+            var spinDeg = t * (360f / MasuThemePlayfieldVisualLayout.BuddhaMandalaSpinPeriodSeconds);
+            _material.SetFloat(SpinId, spinDeg);
 
             if (_rawImage.material != _material)
                 _rawImage.material = _material;
@@ -125,6 +128,8 @@ namespace Masu.UI
                         $"[MasuTheme] Mandala texture not found: TitleArt/{MasuThemePlayfieldVisualLayout.BuddhaMandalaTextureResource}");
                     return false;
                 }
+
+                _texture.wrapMode = TextureWrapMode.Clamp;
             }
 
             if (_material != null)

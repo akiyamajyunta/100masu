@@ -100,6 +100,7 @@ namespace Masu.UI
         private GameOfLifeBackground _gameOfLifeBackground;
         private MandelbrotBackground _mandelbrotBackground;
         private JuliaBackground _juliaBackground;
+        private EqualizerBackground _equalizerBackground;
         private MasuUiGifPlayer _gameOverlayGif;
         private MasuThemeBuddhaMandalaOrbitView _gameBuddhaMandalaOrbit;
         private Image _gameOverlayStatic;
@@ -262,6 +263,7 @@ namespace Masu.UI
                 GameOfLife = _gameOfLifeBackground,
                 Mandelbrot = _mandelbrotBackground,
                 Julia = _juliaBackground,
+                Equalizer = _equalizerBackground,
                 GameOverlayGif = _gameOverlayGif,
                 GameBuddhaMandalaOrbit = _gameBuddhaMandalaOrbit,
                 GameOverlayStatic = _gameOverlayStatic,
@@ -951,6 +953,7 @@ namespace Masu.UI
             BuildGameOfLifeBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildMandelbrotBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildJuliaBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildEqualizerBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildGameOverlayGif(backdropRoot, _gameBgImage != null ? 2 : 1);
             BuildDopamineScreenFx(1);
         }
@@ -985,6 +988,17 @@ namespace Masu.UI
             go.transform.SetSiblingIndex(siblingIndex);
             MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
             _juliaBackground = go.GetComponent<JuliaBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildEqualizerBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("EqualizerBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(EqualizerBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _equalizerBackground = go.GetComponent<EqualizerBackground>();
             go.SetActive(false);
         }
 

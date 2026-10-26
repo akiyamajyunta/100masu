@@ -43,6 +43,9 @@ namespace Masu.UI
                 case MasuThemeGameBackgroundKind.Julia:
                     ShowJulia(visual.BackgroundFallback);
                     return;
+                case MasuThemeGameBackgroundKind.Equalizer:
+                    ShowEqualizer(visual.BackgroundFallback);
+                    return;
             }
 
             if (_bindings.GameBackground != null)
@@ -96,11 +99,23 @@ namespace Masu.UI
             julia.PlayBackground();
         }
 
+        private void ShowEqualizer(Color fallback)
+        {
+            var eq = _bindings?.Equalizer;
+            if (eq == null) return;
+
+            PrepareBackdropFallback(fallback);
+            eq.gameObject.SetActive(true);
+            PinProceduralAboveBackground(eq.transform);
+            eq.PlayBackground();
+        }
+
         private void HideProceduralBackgrounds()
         {
             HideGameOfLife();
             HideMandelbrot();
             HideJulia();
+            HideEqualizer();
         }
 
         private void HideGameOfLife()
@@ -125,6 +140,14 @@ namespace Masu.UI
             if (julia == null) return;
             julia.StopBackground();
             julia.gameObject.SetActive(false);
+        }
+
+        private void HideEqualizer()
+        {
+            var eq = _bindings?.Equalizer;
+            if (eq == null) return;
+            eq.StopBackground();
+            eq.gameObject.SetActive(false);
         }
 
         private void ApplyOverlay(MasuThemeGameOverlayConfig overlay, MasuThemeDefinition definition)
@@ -334,6 +357,9 @@ namespace Masu.UI
             var julia = _bindings?.Julia;
             if (julia != null && julia.gameObject.activeSelf)
                 return julia.transform;
+            var eq = _bindings?.Equalizer;
+            if (eq != null && eq.gameObject.activeSelf)
+                return eq.transform;
             return null;
         }
     }

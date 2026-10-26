@@ -8,5 +8,6 @@ namespace Masu.UI
         GameOfLife = 2,
         Mandelbrot = 3,
         Julia = 4,
+        Equalizer = 5,
     }
 }
