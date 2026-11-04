@@ -184,6 +184,19 @@ namespace Masu.UI
             ApplyRankingLatin(text, fontSize);
         }
 
+        /// <summary>OS 明朝（般若心経ストリーム等の日本語グリフ用）。</summary>
+        public static Font GetMinchoForSize(int fontSize)
+        {
+            var bucket = BucketSize(fontSize);
+            if (!MinchoCache.TryGetValue(bucket, out var font) || font == null)
+            {
+                font = Font.CreateDynamicFontFromOSFont(MinchoFontFamilies, bucket);
+                MinchoCache[bucket] = font;
+            }
+
+            return font;
+        }
+
         private static int BucketSize(int fontSize)
         {
             var s = Mathf.Clamp(fontSize, 10, 128);

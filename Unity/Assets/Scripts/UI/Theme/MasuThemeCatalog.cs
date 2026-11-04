@@ -52,8 +52,6 @@ namespace Masu.UI
             yield return CreateRuntime("cool", "クール", MasuThemePalette.Cool(),
                 menuPhoto: "", gameBg: "theme_cool_game_bg",
                 overlayTex: "theme_cool_overlay", overlayScrollSpeed: 42f);
-            yield return CreateRuntime("modern", "モダン", MasuThemePalette.Modern(),
-                menuPhoto: "", gameBg: "", menuFallback: new Color(0.1f, 0.14f, 0.2f));
             yield return CreateRuntime("cyber", "サイバー", MasuThemePalette.Cyber(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.06f, 0.08f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.GameOfLife);
@@ -63,12 +61,50 @@ namespace Masu.UI
             yield return CreateRuntime("cosmo", "コスモ", MasuThemePalette.Cosmo(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.04f, 0.07f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.Julia);
+            yield return CreateRuntime("cosmic", "コズミック", MasuThemePalette.Cosmic(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.04f, 0.05f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.LcdFireworks,
+                gameBackdropFallback: Color.black);
+            yield return CreateRuntime("grid", "グリッド", MasuThemePalette.Grid(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.06f, 0.02f, 0.02f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.RedGridPulse,
+                gameBackdropFallback: Color.black);
+            yield return CreateRuntime("data", "データ", MasuThemePalette.Data(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.06f, 0.13f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.BubbleSort,
+                gameBackdropFallback: new Color32(0x0a, 0x10, 0x22, 0xff));
             yield return CreateRuntime("live", "ライブ", MasuThemePalette.Live(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.06f, 0.13f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.Equalizer,
                 gameBackdropFallback: new Color32(0x0a, 0x10, 0x22, 0xff));
+            yield return CreateRuntime("neo", "ネオ", MasuThemePalette.Neo(),
+                menuPhoto: "", gameBg: "", menuFallback: Color.black,
+                gameBackgroundKind: MasuThemeGameBackgroundKind.HannyaGreenStream,
+                gameBackdropFallback: Color.black);
+            yield return CreateRuntime("pipe", "パイプ", MasuThemePalette.Pipe(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.04f, 0.06f),
+                gameBackdropFallback: Color.black,
+                overlayVideo: "theme_pipe_screensaver",
+                overlayGif: "theme_pipe_screensaver.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("saimin", "催眠", MasuThemePalette.Saimin(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.12f, 0.12f, 0.15f),
+                gameBackdropFallback: new Color32(0x2a, 0x2a, 0x34, 0xff),
+                overlayVideo: "theme_saimin_tunnel",
+                overlayGif: "theme_saimin_tunnel.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("aurora", "オーロラ", MasuThemePalette.Aurora(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.06f, 0.08f),
+                gameBackdropFallback: new Color32(0x0a, 0x0c, 0x10, 0xff),
+                overlayGif: "theme_aurora_ribbon.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("dessert", "デザート", MasuThemePalette.Dessert(),
+                menuPhoto: "", gameBg: "theme_dessert_game_bg",
+                menuFallback: new Color(0.96f, 0.92f, 0.88f));
             yield return CreateRuntime("pop", "ポップ", MasuThemePalette.Pop(),
-                menuPhoto: "", gameBg: "", menuFallback: new Color(1f, 0.92f, 0.96f));
+                menuPhoto: "", gameBg: "", menuFallback: new Color(1f, 0.92f, 0.96f),
+                gameBackgroundKind: MasuThemeGameBackgroundKind.RadialDotPattern,
+                gameBackdropFallback: new Color32(0x1e, 0x1e, 0x1e, 0xff));
             yield return CreateRuntime("buddha", "仏", MasuThemePalette.Buddha(),
                 menuPhoto: "", gameBg: "theme_buddha_game_bg",
                 overlayGif: "theme_buddha_overlay.gif",
@@ -84,6 +120,7 @@ namespace Masu.UI
             string gameBg,
             Color? menuFallback = null,
             string overlayGif = "",
+            string overlayVideo = "",
             string overlayTex = "",
             float overlayScrollSpeed = 0f,
             MasuThemeGameBackgroundKind gameBackgroundKind = MasuThemeGameBackgroundKind.Auto,
@@ -99,6 +136,12 @@ namespace Masu.UI
             def.GameBackgroundResource = gameBg ?? "";
             def.GameBackgroundKind = gameBackgroundKind;
             def.GameOverlayGifResource = overlayGif ?? "";
+            if (!string.IsNullOrEmpty(overlayVideo))
+            {
+                def.GameOverlayKind = MasuThemeGameOverlayKind.Video;
+                def.GameOverlayResource = overlayVideo;
+            }
+
             def.GameOverlayTextureResource = overlayTex ?? "";
             def.GameOverlayScrollSpeed = overlayScrollSpeed;
             def.GameOverlayLayout = overlayLayout;

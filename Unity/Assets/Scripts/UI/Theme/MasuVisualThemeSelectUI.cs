@@ -18,9 +18,8 @@ namespace Masu.UI
         {
             public MasuThemeDefinition Definition;
             public RectTransform Root;
-            public Image Background;
-            public Image Border;
-            public Text Label;
+            public Outline SelectionOutline;
+            public Image Thumbnail;
             public Button Button;
         }
 
@@ -49,7 +48,6 @@ namespace Masu.UI
 
             var count = themes.Count;
             var cols = MasuVisualThemeLayout.GridColumns;
-            var rows = Mathf.Max(1, (count + cols - 1) / cols);
             var gridW = cols * MasuVisualThemeLayout.GridCellSize + (cols - 1) * MasuVisualThemeLayout.GridSpacingX;
             var startX = -gridW * 0.5f + MasuVisualThemeLayout.GridCellSize * 0.5f;
 
@@ -83,6 +81,10 @@ namespace Masu.UI
 
         private ThemeCard CreateCard(Transform panel, MasuThemeDefinition def, Vector2 pos)
         {
+            var black = MasuVisualThemeLayout.CardBlackBorderPx;
+            var white = MasuVisualThemeLayout.CardWhiteBorderPx;
+            var inner = black + white;
+
             var go = new GameObject($"ThemeCard_{def.ThemeId}", typeof(RectTransform));
             go.transform.SetParent(panel, false);
             var rt = go.GetComponent<RectTransform>();
@@ -91,33 +93,36 @@ namespace Masu.UI
             rt.anchoredPosition = pos;
             rt.sizeDelta = new Vector2(MasuVisualThemeLayout.GridCellSize, MasuVisualThemeLayout.GridCellSize);
 
-            var borderGo = new GameObject("Border", typeof(RectTransform), typeof(Image));
-            borderGo.transform.SetParent(go.transform, false);
-            MasuUiFactory.Stretch(borderGo.GetComponent<RectTransform>());
-            var border = borderGo.GetComponent<Image>();
-            border.color = new Color(0, 0, 0, 0);
-            border.raycastTarget = false;
+            var blackGo = new GameObject("BlackBorder", typeof(RectTransform), typeof(Image));
+            blackGo.transform.SetParent(go.transform, false);
+            MasuUiFactory.Stretch(blackGo.GetComponent<RectTransform>());
+            var blackImg = blackGo.GetComponent<Image>();
+            blackImg.color = Color.black;
+            var selectionOutline = blackGo.AddComponent<Outline>();
+            selectionOutline.effectColor = Color.clear;
+            selectionOutline.effectDistance = new Vector2(
+                MasuVisualThemeLayout.CardSelectionRingOutsetPx,
+                -MasuVisualThemeLayout.CardSelectionRingOutsetPx);
+            selectionOutline.useGraphicAlpha = false;
 
-            var bgGo = new GameObject("Bg", typeof(RectTransform), typeof(Image));
-            bgGo.transform.SetParent(go.transform, false);
-            var bgRt = bgGo.GetComponent<RectTransform>();
-            MasuUiFactory.Stretch(bgRt, 4f, 4f, 4f, 4f);
-            var bg = bgGo.GetComponent<Image>();
-            bg.color = def.Palette.ThemeCardTint;
-            bg.raycastTarget = true;
+            var whiteGo = new GameObject("WhiteFrame", typeof(RectTransform), typeof(Image));
+            whiteGo.transform.SetParent(go.transform, false);
+            MasuUiFactory.Stretch(whiteGo.GetComponent<RectTransform>(), black, black, black, black);
+            whiteGo.GetComponent<Image>().color = Color.white;
 
-            var label = MasuUiFactory.CreateText(go.transform, "Label", def.DisplayNameJa,
-                MasuVisualThemeLayout.CardLabelFontSize, MasuTheme.MenuTitleText, TextAnchor.LowerCenter);
-            MasuFonts.ApplyRankingMincho(label, MasuVisualThemeLayout.CardLabelFontSize, bold: true);
-            var labelRt = label.rectTransform;
-            labelRt.anchorMin = new Vector2(0, 0);
-            labelRt.anchorMax = new Vector2(1, 0);
-            labelRt.pivot = new Vector2(0.5f, 0);
-            labelRt.anchoredPosition = new Vector2(0, 4f);
-            labelRt.sizeDelta = new Vector2(-8, 28);
+            var thumbGo = new GameObject("Thumbnail", typeof(RectTransform), typeof(Image));
+            thumbGo.transform.SetParent(go.transform, false);
+            MasuUiFactory.Stretch(thumbGo.GetComponent<RectTransform>(), inner, inner, inner, inner);
+            var thumbnail = thumbGo.GetComponent<Image>();
+            thumbnail.raycastTarget = true;
+            thumbnail.preserveAspect = false;
+            thumbnail.type = Image.Type.Simple;
+
+            var previewKey = MasuThemeCardPreview.ResolveResourceKey(def);
+            MasuThemeBackdropApplier.ApplyBackdrop(thumbnail, previewKey, def.Palette.ThemeCardTint);
 
             var button = go.AddComponent<Button>();
-            button.targetGraphic = bg;
+            button.targetGraphic = thumbnail;
             var captured = def;
             button.onClick.AddListener(() =>
             {
@@ -133,9 +138,8 @@ namespace Masu.UI
             {
                 Definition = def,
                 Root = rt,
-                Background = bg,
-                Border = border,
-                Label = label,
+                SelectionOutline = selectionOutline,
+                Thumbnail = thumbnail,
                 Button = button,
             };
         }
@@ -220,12 +224,12 @@ namespace Masu.UI
             {
                 var sel = i == _cursor;
                 var card = _cards[i];
-                card.Border.color = sel
-                    ? active.Palette.ThemeCardSelectedBorder
-                    : new Color(0, 0, 0, 0);
-                MasuUiFactory.Stretch(card.Border.rectTransform, sel ? 0f : 4f, sel ? 0f : 4f, sel ? 0f : 4f,
-                    sel ? 0f : 4f);
-                card.Label.fontStyle = sel ? FontStyle.Bold : FontStyle.Normal;
+                if (card.SelectionOutline != null)
+                {
+                    card.SelectionOutline.effectColor = sel
+                        ? active.Palette.ThemeCardSelectedBorder
+                        : Color.clear;
+                }
             }
 
             if (applyTheme)

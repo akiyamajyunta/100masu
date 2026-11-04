@@ -15,6 +15,12 @@ namespace Masu.UI
         public MandelbrotBackground Mandelbrot;
         public JuliaBackground Julia;
         public EqualizerBackground Equalizer;
+        public BubbleSortBackground BubbleSort;
+        public TunnelIllusionBackground TunnelIllusion;
+        public HannyaShingyoGreenStreamBackground HannyaGreenStream;
+        public RadialDotPatternBackground RadialDotPattern;
+        public LcdFireworksBackground LcdFireworks;
+        public RedGridPulseBackground RedGridPulse;
         public MasuUiGifPlayer GameOverlayGif;
         public MasuThemeBuddhaMandalaOrbitView GameBuddhaMandalaOrbit;
         public Image GameOverlayStatic;

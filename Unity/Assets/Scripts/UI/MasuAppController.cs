@@ -101,9 +101,18 @@ namespace Masu.UI
         private MandelbrotBackground _mandelbrotBackground;
         private JuliaBackground _juliaBackground;
         private EqualizerBackground _equalizerBackground;
+        private BubbleSortBackground _bubbleSortBackground;
+        private TunnelIllusionBackground _tunnelIllusionBackground;
+        private HannyaShingyoGreenStreamBackground _hannyaGreenStreamBackground;
+        private RadialDotPatternBackground _radialDotPatternBackground;
+        private LcdFireworksBackground _lcdFireworksBackground;
+        private RedGridPulseBackground _redGridPulseBackground;
         private MasuUiGifPlayer _gameOverlayGif;
+        private MasuThemeOverlayVideoPlayer _gameOverlayVideo;
         private MasuThemeBuddhaMandalaOrbitView _gameBuddhaMandalaOrbit;
         private Image _gameOverlayStatic;
+        private Image _mainPlayFrameBackdrop;
+        private Image _scoreFrameBackdrop;
         private Coroutine _forestHighlightRoutine;
         private Coroutine _screenEntranceRoutine;
         private readonly Dictionary<RectTransform, Vector2> _slideBaseAnchored = new();
@@ -264,7 +273,14 @@ namespace Masu.UI
                 Mandelbrot = _mandelbrotBackground,
                 Julia = _juliaBackground,
                 Equalizer = _equalizerBackground,
+                BubbleSort = _bubbleSortBackground,
+                TunnelIllusion = _tunnelIllusionBackground,
+                HannyaGreenStream = _hannyaGreenStreamBackground,
+                RadialDotPattern = _radialDotPatternBackground,
+                LcdFireworks = _lcdFireworksBackground,
+                RedGridPulse = _redGridPulseBackground,
                 GameOverlayGif = _gameOverlayGif,
+                GameOverlayVideo = _gameOverlayVideo,
                 GameBuddhaMandalaOrbit = _gameBuddhaMandalaOrbit,
                 GameOverlayStatic = _gameOverlayStatic,
                 TitleSidePanel = _titleSidePanel,
@@ -276,6 +292,7 @@ namespace Masu.UI
         {
             if (_screen != AppScreen.Game) return;
             MasuThemeManager.ApplyGameplayLook();
+            RefreshGameplayFrameChrome();
             if (_gridView != null)
                 _gridView.Rebuild(_state.Grid);
             RefreshGrid();
@@ -954,7 +971,14 @@ namespace Masu.UI
             BuildMandelbrotBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildJuliaBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildEqualizerBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildBubbleSortBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildTunnelIllusionBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildHannyaGreenStreamBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildRadialDotPatternBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildLcdFireworksBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
+            BuildRedGridPulseBackground(backdropRoot, _gameBgImage != null ? 1 : 0);
             BuildGameOverlayGif(backdropRoot, _gameBgImage != null ? 2 : 1);
+            BuildGameOverlayVideo(backdropRoot, _gameBgImage != null ? 2 : 1);
             BuildDopamineScreenFx(1);
         }
 
@@ -999,6 +1023,72 @@ namespace Masu.UI
             go.transform.SetSiblingIndex(siblingIndex);
             MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
             _equalizerBackground = go.GetComponent<EqualizerBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildBubbleSortBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("BubbleSortBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(BubbleSortBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _bubbleSortBackground = go.GetComponent<BubbleSortBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildTunnelIllusionBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("TunnelIllusionBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(TunnelIllusionBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _tunnelIllusionBackground = go.GetComponent<TunnelIllusionBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildHannyaGreenStreamBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("HannyaGreenStreamBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(HannyaShingyoGreenStreamBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _hannyaGreenStreamBackground = go.GetComponent<HannyaShingyoGreenStreamBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildRadialDotPatternBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("RadialDotPatternBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(RadialDotPatternBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _radialDotPatternBackground = go.GetComponent<RadialDotPatternBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildLcdFireworksBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("LcdFireworksBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(LcdFireworksBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _lcdFireworksBackground = go.GetComponent<LcdFireworksBackground>();
+            go.SetActive(false);
+        }
+
+        private void BuildRedGridPulseBackground(Transform backdropRoot, int siblingIndex)
+        {
+            var go = new GameObject("RedGridPulseBg", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(RawImage), typeof(RedGridPulseBackground));
+            go.transform.SetParent(backdropRoot, false);
+            go.transform.SetSiblingIndex(siblingIndex);
+            MasuUiFactory.StretchFullBleed(go.GetComponent<RectTransform>(), BackdropBleedPixels);
+            _redGridPulseBackground = go.GetComponent<RedGridPulseBackground>();
             go.SetActive(false);
         }
 
@@ -1050,6 +1140,20 @@ namespace Masu.UI
             staticGo.SetActive(false);
         }
 
+        private void BuildGameOverlayVideo(Transform backdropRoot, int siblingIndex)
+        {
+            var videoGo = new GameObject(
+                "GameOverlayVideo",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(RawImage),
+                typeof(MasuThemeOverlayVideoPlayer));
+            videoGo.transform.SetParent(backdropRoot, false);
+            videoGo.transform.SetSiblingIndex(siblingIndex);
+            _gameOverlayVideo = videoGo.GetComponent<MasuThemeOverlayVideoPlayer>();
+            videoGo.SetActive(false);
+        }
+
         private void BuildGameLayer()
         {
             BuildGameBackdrop();
@@ -1065,6 +1169,9 @@ namespace Masu.UI
                 regionScale: GameFrameRegionScaleX,
                 regionScaleY: GameFrameRegionScaleY,
                 borderColor: MasuTheme.GameFrameBorder);
+            _mainPlayFrameBackdrop = playInner.parent != null
+                ? playInner.parent.Find("Backdrop")?.GetComponent<Image>()
+                : null;
 
             var gridHost = new GameObject("GridHost", typeof(RectTransform), typeof(RectMask2D));
             gridHost.transform.SetParent(playInner, false);
@@ -1112,6 +1219,9 @@ namespace Masu.UI
                 regionScale: MasuScoreSidebarLayout.FrameRegionScaleX,
                 regionScaleY: MasuScoreSidebarLayout.FrameRegionScaleY,
                 borderColor: MasuTheme.GameFrameBorder);
+            _scoreFrameBackdrop = scoreInner.parent != null
+                ? scoreInner.parent.Find("Backdrop")?.GetComponent<Image>()
+                : null;
 
             _sidebarMode = MasuUiFactory.CreateText(scoreInner, "Mode", "", MasuScoreSidebarLayout.ModeFontSize,
                 MasuTheme.CursorGold, TextAnchor.UpperCenter);
@@ -1295,6 +1405,16 @@ namespace Masu.UI
             _endConfirmLabels = new[] { _endConfirmYes, _endConfirmNo };
         }
 
+        private void RefreshGameplayFrameChrome()
+        {
+            var inner = MasuTheme.GameFrameInner;
+            if (_mainPlayFrameBackdrop != null)
+                _mainPlayFrameBackdrop.color = inner;
+            if (_scoreFrameBackdrop != null)
+                _scoreFrameBackdrop.color = inner;
+            _gridView?.ApplyThemeFromPalette();
+        }
+
         private void ShowScreen(AppScreen screen)
         {
             if (screen != AppScreen.Game)
@@ -1309,7 +1429,11 @@ namespace Masu.UI
             _menuRoot.gameObject.SetActive(screen != AppScreen.Game);
             _gameRoot.gameObject.SetActive(screen == AppScreen.Game);
             if (screen == AppScreen.Game)
+            {
                 MasuThemeManager.ApplyGameplayLook();
+                RefreshGameplayFrameChrome();
+                _gridView?.ApplyThemeFromPalette();
+            }
             else
                 MasuThemeManager.ApplyMainMenuLook();
             foreach (var kv in _menuPanels)

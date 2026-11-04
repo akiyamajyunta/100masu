@@ -18,6 +18,8 @@ namespace Masu.UI
             var visual = MasuThemeGameVisualConfig.FromDefinition(definition);
 
             ApplyBackground(visual);
+            if (UsesFullBleedOverlayPlayBackground(visual))
+                PrepareBackdropFallback(visual.BackgroundFallback);
             StopOverlayPlayback();
             ApplyOverlay(visual.Overlay, definition);
         }
@@ -45,6 +47,24 @@ namespace Masu.UI
                     return;
                 case MasuThemeGameBackgroundKind.Equalizer:
                     ShowEqualizer(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.BubbleSort:
+                    ShowBubbleSort(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.TunnelIllusion:
+                    ShowTunnelIllusion(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.HannyaGreenStream:
+                    ShowHannyaGreenStream(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.RadialDotPattern:
+                    ShowRadialDotPattern(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.LcdFireworks:
+                    ShowLcdFireworks(visual.BackgroundFallback);
+                    return;
+                case MasuThemeGameBackgroundKind.RedGridPulse:
+                    ShowRedGridPulse(visual.BackgroundFallback);
                     return;
             }
 
@@ -110,12 +130,84 @@ namespace Masu.UI
             eq.PlayBackground();
         }
 
+        private void ShowBubbleSort(Color fallback)
+        {
+            var sort = _bindings?.BubbleSort;
+            if (sort == null) return;
+
+            PrepareBackdropFallback(fallback);
+            sort.gameObject.SetActive(true);
+            PinProceduralAboveBackground(sort.transform);
+            sort.PlayBackground();
+        }
+
+        private void ShowTunnelIllusion(Color fallback)
+        {
+            var tunnel = _bindings?.TunnelIllusion;
+            if (tunnel == null) return;
+
+            PrepareBackdropFallback(fallback);
+            tunnel.gameObject.SetActive(true);
+            PinProceduralAboveBackground(tunnel.transform);
+            tunnel.PlayBackground();
+        }
+
+        private void ShowHannyaGreenStream(Color fallback)
+        {
+            var stream = _bindings?.HannyaGreenStream;
+            if (stream == null) return;
+
+            PrepareBackdropFallback(fallback);
+            stream.gameObject.SetActive(true);
+            PinProceduralAboveBackground(stream.transform);
+            stream.PlayBackground();
+        }
+
+        private void ShowRadialDotPattern(Color fallback)
+        {
+            var radial = _bindings?.RadialDotPattern;
+            if (radial == null) return;
+
+            PrepareBackdropFallback(fallback);
+            radial.gameObject.SetActive(true);
+            PinProceduralAboveBackground(radial.transform);
+            radial.PlayBackground();
+        }
+
+        private void ShowLcdFireworks(Color fallback)
+        {
+            var lcd = _bindings?.LcdFireworks;
+            if (lcd == null) return;
+
+            PrepareBackdropFallback(fallback);
+            lcd.gameObject.SetActive(true);
+            PinProceduralAboveBackground(lcd.transform);
+            lcd.PlayBackground();
+        }
+
+        private void ShowRedGridPulse(Color fallback)
+        {
+            var grid = _bindings?.RedGridPulse;
+            if (grid == null) return;
+
+            PrepareBackdropFallback(fallback);
+            grid.gameObject.SetActive(true);
+            PinProceduralAboveBackground(grid.transform);
+            grid.PlayBackground();
+        }
+
         private void HideProceduralBackgrounds()
         {
             HideGameOfLife();
             HideMandelbrot();
             HideJulia();
             HideEqualizer();
+            HideBubbleSort();
+            HideTunnelIllusion();
+            HideHannyaGreenStream();
+            HideRadialDotPattern();
+            HideLcdFireworks();
+            HideRedGridPulse();
         }
 
         private void HideGameOfLife()
@@ -150,6 +242,54 @@ namespace Masu.UI
             eq.gameObject.SetActive(false);
         }
 
+        private void HideBubbleSort()
+        {
+            var sort = _bindings?.BubbleSort;
+            if (sort == null) return;
+            sort.StopBackground();
+            sort.gameObject.SetActive(false);
+        }
+
+        private void HideTunnelIllusion()
+        {
+            var tunnel = _bindings?.TunnelIllusion;
+            if (tunnel == null) return;
+            tunnel.StopBackground();
+            tunnel.gameObject.SetActive(false);
+        }
+
+        private void HideHannyaGreenStream()
+        {
+            var stream = _bindings?.HannyaGreenStream;
+            if (stream == null) return;
+            stream.StopBackground();
+            stream.gameObject.SetActive(false);
+        }
+
+        private void HideRadialDotPattern()
+        {
+            var radial = _bindings?.RadialDotPattern;
+            if (radial == null) return;
+            radial.StopBackground();
+            radial.gameObject.SetActive(false);
+        }
+
+        private void HideLcdFireworks()
+        {
+            var lcd = _bindings?.LcdFireworks;
+            if (lcd == null) return;
+            lcd.StopBackground();
+            lcd.gameObject.SetActive(false);
+        }
+
+        private void HideRedGridPulse()
+        {
+            var grid = _bindings?.RedGridPulse;
+            if (grid == null) return;
+            grid.StopBackground();
+            grid.gameObject.SetActive(false);
+        }
+
         private void ApplyOverlay(MasuThemeGameOverlayConfig overlay, MasuThemeDefinition definition)
         {
             if (definition?.ThemeId == "buddha")
@@ -174,7 +314,7 @@ namespace Masu.UI
                     ShowGifOverlay(overlay);
                     return;
                 case MasuThemeGameOverlayKind.Video:
-                    ShowVideoOverlay(overlay.ResourceKey);
+                    ShowVideoOverlay(overlay);
                     return;
             }
         }
@@ -244,22 +384,34 @@ namespace Masu.UI
             view.Show(overlay.Layout);
         }
 
-        private void ShowVideoOverlay(string clipKey)
+        private void ShowVideoOverlay(MasuThemeGameOverlayConfig overlay)
         {
             var host = _bindings?.GameOverlayVideo;
             if (host == null)
             {
                 Debug.LogWarning(
-                    $"[MasuTheme] Video overlay requested ({clipKey}) but {nameof(MasuThemeOverlayVideoHost)} is not registered.");
+                    $"[MasuTheme] Video overlay requested ({overlay.ResourceKey}) but {nameof(MasuThemeOverlayVideoHost)} is not registered.");
                 return;
             }
 
             StopStaticScroll();
             SetGifLayerActive(false);
             SetStaticLayerActive(false);
+            SetBuddhaMandalaOrbitActive(false);
+
+            var rt = host.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                rt.localScale = Vector3.one;
+                rt.localEulerAngles = Vector3.zero;
+                MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
+            }
+
             host.gameObject.SetActive(true);
-            if (!host.TryPlayResource(clipKey))
-                Debug.LogWarning($"[MasuTheme] Video overlay failed: TitleArt/{clipKey}");
+            if (!host.TryPlayResource(overlay.ResourceKey))
+                Debug.LogWarning($"[MasuTheme] Video overlay failed: TitleArt/{overlay.ResourceKey}");
+            else
+                PinLayerAboveBackground(host.transform);
         }
 
         private void StopOverlayPlayback()
@@ -360,7 +512,33 @@ namespace Masu.UI
             var eq = _bindings?.Equalizer;
             if (eq != null && eq.gameObject.activeSelf)
                 return eq.transform;
+            var sort = _bindings?.BubbleSort;
+            if (sort != null && sort.gameObject.activeSelf)
+                return sort.transform;
+            var tunnel = _bindings?.TunnelIllusion;
+            if (tunnel != null && tunnel.gameObject.activeSelf)
+                return tunnel.transform;
+            var stream = _bindings?.HannyaGreenStream;
+            if (stream != null && stream.gameObject.activeSelf)
+                return stream.transform;
+            var radial = _bindings?.RadialDotPattern;
+            if (radial != null && radial.gameObject.activeSelf)
+                return radial.transform;
+            var lcd = _bindings?.LcdFireworks;
+            if (lcd != null && lcd.gameObject.activeSelf)
+                return lcd.transform;
+            var grid = _bindings?.RedGridPulse;
+            if (grid != null && grid.gameObject.activeSelf)
+                return grid.transform;
             return null;
+        }
+
+        /// <summary>静止 GameBg なしで全面 GIF / 動画をプレイ背景にするテーマ（催眠・パイプ等）。</summary>
+        static bool UsesFullBleedOverlayPlayBackground(MasuThemeGameVisualConfig visual)
+        {
+            if (!string.IsNullOrEmpty(visual.BackgroundResourceKey)) return false;
+            if (visual.Overlay.Layout != MasuThemeGameOverlayLayout.FullBleed) return false;
+            return visual.Overlay.Kind is MasuThemeGameOverlayKind.GifBytes or MasuThemeGameOverlayKind.Video;
         }
     }
 }

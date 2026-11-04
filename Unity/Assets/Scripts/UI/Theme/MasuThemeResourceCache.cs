@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Video;
 
 namespace Masu.UI
 {
@@ -8,6 +9,7 @@ namespace Masu.UI
     {
         private static readonly Dictionary<string, TextAsset> GifAssets = new();
         private static readonly Dictionary<string, Texture2D> Textures = new();
+        private static readonly Dictionary<string, VideoClip> VideoClips = new();
 
         public static string TitleArtPath(string fileName)
         {
@@ -34,6 +36,7 @@ namespace Masu.UI
                     TryGetTexture(visual.Overlay.ResourceKey, out _);
                     break;
                 case MasuThemeGameOverlayKind.Video:
+                    TryGetVideoClip(visual.Overlay.ResourceKey, out _);
                     break;
             }
         }
@@ -42,6 +45,7 @@ namespace Masu.UI
         {
             GifAssets.Clear();
             Textures.Clear();
+            VideoClips.Clear();
         }
 
         public static bool TryGetTexture(string resourceKeyWithoutFolder, out Texture2D texture)
@@ -72,6 +76,19 @@ namespace Masu.UI
             }
 
             GifAssets[gifFileName] = asset;
+            return true;
+        }
+
+        public static bool TryGetVideoClip(string resourceKeyWithoutExtension, out VideoClip clip)
+        {
+            clip = null;
+            if (string.IsNullOrEmpty(resourceKeyWithoutExtension)) return false;
+            if (VideoClips.TryGetValue(resourceKeyWithoutExtension, out clip) && clip != null)
+                return true;
+
+            clip = Resources.Load<VideoClip>(TitleArtPath(resourceKeyWithoutExtension));
+            if (clip == null) return false;
+            VideoClips[resourceKeyWithoutExtension] = clip;
             return true;
         }
     }

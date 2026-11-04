@@ -28,6 +28,9 @@
 コードで `OptionsVisual` パネルに自動構築されます。
 
 - **6列グリッド**のカード（`MasuVisualThemeLayout` でサイズ・間隔を調整）
+- 各カードは **黒縁＋白枠**、中に **TitleArt サムネイル**（`MasuThemeCardPreview` / `theme_card_*.jpg` 等）
+- タイル内のテーマ名テキストはなし（選択中名称は上部ラベルのみ）
+- サムネ再生成: `python Unity/tools/bake_theme_card_previews.py`（プレイ背景 HTML／MP4 フレーム相当）
 - **←→↑↓** でカード選択 → **即時プレビュー**（`MasuThemeManager.SetActiveTheme`）
 - **クリック**でも同様
 - 上部に選択中テーマ名（例: 和風）
@@ -78,12 +81,19 @@
 |---------|--------|------|
 | `wafuu` | 和風 | 既存 TitleArt 素材 |
 | `cool` | クール | `theme_cool_game_bg` + 雪オーバーレイ（GIF があれば GIF、なければ `theme_cool_overlay` PNG） |
-| `modern` | モダン | 単色背景プレビュー（写真キー空） |
 | `cyber` | サイバー | ライフゲーム背景（`GameOfLifeBackground`）＋ネオン系パレット |
+| `data` | データ | ソートビジュアライザ背景（`BubbleSortBackground`）＋青／シアン系パレット |
 | `live` | ライブ | 虹色イコライザ背景（`EqualizerBackground`）＋紺／ピンク系パレット |
+| `neo` | ネオ | 般若心経グリーンストリーム（`HannyaShingyoGreenStreamBackground`）＋マトリックス緑系パレット |
+| `pipe` | パイプ | 3D パイプ MP4（`TitleArt/theme_pipe_screensaver.mp4`・`pipe-screensaver-background.html` 相当・全面。未配置時は GIF フォールバック）＋黒／シアン系パレット |
+| `saimin` | 催眠 | 錯視トンネル MP4（`TitleArt/theme_saimin_tunnel.mp4`・`tunnel-illusion-background.html` 相当・全面。未配置時は GIF フォールバック）＋モノクロ系パレット |
+| `aurora` | オーロラ | リボン状オーロラ GIF（`TitleArt/theme_aurora_ribbon.gif.bytes`・全面）＋シアン／夜空系パレット |
 | `corona` | コロナ | マンデルブロ背景（`MandelbrotBackground`）＋暖色パレット |
 | `cosmo` | コスモ | ジュリア背景（`JuliaBackground` / `julia-background.js` 相当）＋シアン系パレット |
-| `pop` | ポップ | パステル系パレット |
+| `cosmic` | コズミック | LCD 花火（`LcdFireworksBackground`・Game &amp; Watch 風）＋白／黒パレット |
+| `grid` | グリッド | 赤波打ちグリッド＋暗色レインボーパルス（`RedGridPulseBackground`）＋赤系パレット |
+| `dessert` | デザート | `theme_dessert_game_bg`（アフタヌーンティー風）＋クリーム／ブラウン系パレット |
+| `pop` | ポップ | 同心円ドット＋STG弾幕（`RadialDotPatternBackground`・HTML preset 連続弾幕相当）＋パステル系パレット |
 | `buddha` | 仏 | 涅槃像＋右下曼荼羅（`theme_buddha_mandala.png`＋`MasuThemeBuddhaMandalaOrbitView`）。`Unity/docs/BUDDHA_MANDALA_ORBIT.md` |
 
 和風以外は `title_photo` / `title_game_bg` を割り当てるか、SO で専用 PNG を指定してください。

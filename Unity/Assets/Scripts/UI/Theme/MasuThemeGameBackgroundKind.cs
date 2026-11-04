@@ -9,5 +9,11 @@ namespace Masu.UI
         Mandelbrot = 3,
         Julia = 4,
         Equalizer = 5,
+        BubbleSort = 6,
+        TunnelIllusion = 7,
+        HannyaGreenStream = 8,
+        RadialDotPattern = 9,
+        LcdFireworks = 10,
+        RedGridPulse = 11,
     }
 }

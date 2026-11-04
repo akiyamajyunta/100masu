@@ -23,6 +23,9 @@ namespace Masu.UI
         public string GameBackgroundResource = "title_game_bg";
         public MasuThemeGameBackgroundKind GameBackgroundKind = MasuThemeGameBackgroundKind.Auto;
 
+        [Tooltip("ビジュアル選択カードのサムネイル（TitleArt・拡張子なし）。空なら自動解決。")]
+        public string ThemeCardPreviewResource = "";
+
         [Header("Playfield overlay")]
         public MasuThemeGameOverlayKind GameOverlayKind = MasuThemeGameOverlayKind.Auto;
         [Tooltip("Kind が Auto 以外のときの TitleArt キー（GIF は .gif 付き、動画は拡張子なし）")]

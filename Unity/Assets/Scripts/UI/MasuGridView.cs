@@ -143,6 +143,27 @@ namespace Masu.UI
             _gridOuterBorderRt.SetAsLastSibling();
         }
 
+        /// <summary>テーマ切替後、既存セルの色だけ現在パレットに合わせる（Rebuild なし）。</summary>
+        public void ApplyThemeFromPalette()
+        {
+            if (_gridPlateRt != null)
+            {
+                var plateImg = _gridPlateRt.GetComponent<Image>();
+                if (plateImg != null)
+                    plateImg.color = MasuTheme.GameFrameBorder;
+            }
+
+            foreach (var w in _cells.Values)
+            {
+                w.Label.color = MasuTheme.GridCellText;
+                if (w.IsHeader)
+                    continue;
+                w.Bg.color = MasuTheme.CellEmpty;
+                if (w.FocusRingInner != null)
+                    w.FocusRingInner.color = MasuTheme.CellEmpty;
+            }
+        }
+
         private bool _gridOuterBorderBuilt;
 
         private void SyncGridOuterBorder()

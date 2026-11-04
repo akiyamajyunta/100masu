@@ -69,8 +69,15 @@ namespace Masu.UI
 
         private static MasuThemeGameOverlayConfig ResolveOverlay(MasuThemeDefinition def)
         {
+            if (def.GameOverlayKind == MasuThemeGameOverlayKind.Video)
+                return ResolveVideoOverlay(def);
+
             if (def.GameOverlayKind != MasuThemeGameOverlayKind.Auto)
-                return FromExplicitKind(def.GameOverlayKind, def.GameOverlayResource, def.GameOverlayScrollSpeed);
+                return FromExplicitKind(
+                    def.GameOverlayKind,
+                    def.GameOverlayResource,
+                    def.GameOverlayScrollSpeed,
+                    def.GameOverlayLayout);
 
             if (!string.IsNullOrEmpty(def.GameOverlayTextureResource))
                 return Static(def);
@@ -99,6 +106,32 @@ namespace Masu.UI
             return MasuThemeGameOverlayConfig.None;
         }
 
+        private static MasuThemeGameOverlayConfig ResolveVideoOverlay(MasuThemeDefinition def)
+        {
+            var key = def.GameOverlayResource;
+            if (!string.IsNullOrEmpty(key) && MasuThemeResourceCache.TryGetVideoClip(key, out _))
+            {
+                return new MasuThemeGameOverlayConfig(
+                    MasuThemeGameOverlayKind.Video,
+                    key,
+                    def.GameOverlayScrollSpeed,
+                    def.GameOverlayLayout);
+            }
+
+            if (!string.IsNullOrEmpty(def.GameOverlayGifResource)
+                && MasuThemeResourceCache.TryGetGifAsset(def.GameOverlayGifResource, out _))
+            {
+                Debug.LogWarning(
+                    $"[MasuTheme] Video not found ({key}); using GIF '{def.GameOverlayGifResource}'.");
+                return new MasuThemeGameOverlayConfig(
+                    MasuThemeGameOverlayKind.GifBytes,
+                    def.GameOverlayGifResource,
+                    layout: def.GameOverlayLayout);
+            }
+
+            return MasuThemeGameOverlayConfig.None;
+        }
+
         private static MasuThemeGameOverlayConfig Static(MasuThemeDefinition def) =>
             new(
                 MasuThemeGameOverlayKind.StaticTexture,
@@ -109,11 +142,12 @@ namespace Masu.UI
         private static MasuThemeGameOverlayConfig FromExplicitKind(
             MasuThemeGameOverlayKind kind,
             string resourceKey,
-            float scrollSpeed)
+            float scrollSpeed,
+            MasuThemeGameOverlayLayout layout = MasuThemeGameOverlayLayout.FullBleed)
         {
             if (kind == MasuThemeGameOverlayKind.None || string.IsNullOrEmpty(resourceKey))
                 return MasuThemeGameOverlayConfig.None;
-            return new MasuThemeGameOverlayConfig(kind, resourceKey, scrollSpeed);
+            return new MasuThemeGameOverlayConfig(kind, resourceKey, scrollSpeed, layout);
         }
 
         private static string StripGifExtension(string gifFileName)
