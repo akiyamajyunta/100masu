@@ -104,6 +104,46 @@ namespace Masu.UI
                 gameBackdropFallback: new Color32(0x0a, 0x0c, 0x10, 0xff),
                 overlayGif: "theme_aurora_ribbon.gif",
                 overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("suimyaku", "水脈", MasuThemePalette.Suimyaku(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.12f, 0.14f),
+                gameBackdropFallback: new Color32(0x04, 0x28, 0x33, 0xff),
+                overlayGif: "theme_suimyaku.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("ryusei", "流星", MasuThemePalette.Ryusei(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.03f, 0.08f),
+                gameBackdropFallback: new Color32(0x05, 0x07, 0x14, 0xff),
+                overlayGif: "theme_ryusei.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("komorebi", "木漏れ日", MasuThemePalette.Komorebi(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.12f, 0.09f, 0.04f),
+                gameBackdropFallback: new Color32(0x1a, 0x14, 0x08, 0xff),
+                overlayGif: "theme_komorebi.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("holy", "ホーリー", MasuThemePalette.Holy(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.10f, 0.06f, 0.16f),
+                gameBackdropFallback: new Color32(0x1a, 0x10, 0x30, 0xff),
+                overlayGif: "theme_holy.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("marble", "マーブル", MasuThemePalette.Marble(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.10f, 0.04f, 0.10f),
+                gameBackdropFallback: new Color32(0x14, 0x08, 0x18, 0xff),
+                overlayGif: "theme_marble.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("energy", "エナジー", MasuThemePalette.Energy(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.08f, 0.04f),
+                gameBackdropFallback: new Color32(0x02, 0x14, 0x0c, 0xff),
+                overlayGif: "theme_energy.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("disco", "ディスコ", MasuThemePalette.Disco(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.10f, 0.04f, 0.10f),
+                gameBackdropFallback: new Color32(0x12, 0x08, 0x18, 0xff),
+                overlayGif: "theme_disco.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("tile", "タイル", MasuThemePalette.Tile(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.08f, 0.08f, 0.08f),
+                gameBackdropFallback: new Color32(0x10, 0x10, 0x10, 0xff),
+                overlayGif: "theme_tile.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
             yield return CreateRuntime("dessert", "デザート", MasuThemePalette.Dessert(),
                 menuPhoto: "", gameBg: "theme_dessert_game_bg",
                 menuFallback: new Color(0.96f, 0.92f, 0.88f));

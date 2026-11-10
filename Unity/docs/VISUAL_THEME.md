@@ -89,6 +89,14 @@
 | `pipe` | パイプ | 3D パイプ MP4（`TitleArt/theme_pipe_screensaver.mp4`・`pipe-screensaver-background.html` 相当・全面。未配置時は GIF フォールバック）＋黒／シアン系パレット |
 | `saimin` | 催眠 | 錯視トンネル MP4（`TitleArt/theme_saimin_tunnel.mp4`・`tunnel-illusion-background.html` 相当・全面。未配置時は GIF フォールバック）＋モノクロ系パレット |
 | `aurora` | オーロラ | リボン状オーロラ GIF（`TitleArt/theme_aurora_ribbon.gif.bytes`・全面）＋シアン／夜空系パレット |
+| `suimyaku` | 水脈 | コースティクス GIF（`theme_suimyaku.gif.bytes`・全面・無限ループ） |
+| `ryusei` | 流星 | 星の流れ GIF（`theme_ryusei.gif.bytes`・全面・無限ループ） |
+| `komorebi` | 木漏れ日 | 雲層 GIF（`theme_komorebi.gif.bytes`・全面・無限ループ） |
+| `holy` | ホーリー | 黄昏シンセ GIF（`theme_holy.gif.bytes`・全面・無限ループ） |
+| `marble` | マーブル | プラズマ GIF（`theme_marble.gif.bytes`・全面・無限ループ） |
+| `energy` | エナジー | レーダー GIF（`theme_energy.gif.bytes`・全面・無限ループ） |
+| `disco` | ディスコ | 星雲 GIF（`theme_disco.gif.bytes`・全面・無限ループ） |
+| `tile` | タイル | バーコードスクロール GIF（`theme_tile.gif.bytes`・全面・30フレーム周期で無限ループ） |
 | `corona` | コロナ | マンデルブロ MP4（`TitleArt/theme_mandelbrot_background.mp4`・`mandelbrot-background.html` 相当・全面）＋暖色パレット |
 | `cosmo` | コスモ | ジュリア MP4（`TitleArt/theme_julia_background.mp4`・`julia-background.html` 相当・全面）＋シアン系パレット。MP4 失敗時は `JuliaBackground` |
 | `cosmic` | コズミック | LCD 花火（`LcdFireworksBackground`・Game &amp; Watch 風）＋白／黒パレット |
