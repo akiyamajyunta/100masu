@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using GifDecoder = MG.GIF.Decoder;
@@ -13,12 +12,10 @@ namespace Masu.UI
     {
         const string DefaultResourcePath = "TitleArt/title_game_overlay.gif";
         const float DecodeErrorRetrySeconds = 0.2f;
-        const int WatchdogRestartDelayFrames = 2;
 
         [SerializeField] string _resourcePath = DefaultResourcePath;
 
         UnityEngine.UI.Image _image;
-        Coroutine _routine;
         Texture2D _texture;
         Sprite _sprite;
         Texture2D _firstTexture;
@@ -29,10 +26,15 @@ namespace Masu.UI
         string _bytesPath;
         string _pendingResourcePath;
         bool _wantsPlayback;
-        int _watchdogDelayFrames;
+        GifDecoder _decoder;
+        GifFrame _upcoming;
+        float _nextFrameTime;
+        float _retryAfter;
+        Color32[] _displayedPixels;
+        Color32[] _firstPixels;
 
         public string ActiveResourcePath => _resourcePath;
-        public bool IsPlaying => _routine != null;
+        public bool IsPlaying => _wantsPlayback && isActiveAndEnabled;
 
         /// <summary>中央配置オーバーレイなどでスプライトのアスペクト比を保つ。</summary>
         public bool PreserveAspect { get; set; }
@@ -54,34 +56,39 @@ namespace Masu.UI
 
         void OnDisable()
         {
-            StopCoroutineIfRunning();
+            DisposeDecoder();
         }
 
         void OnDestroy()
         {
-            StopCoroutineIfRunning();
+            DisposeDecoder();
             DestroyDisplayedSprite();
             ClearFirstFrame();
+        }
+
+        void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus) return;
+            Reupload(_firstTexture, _firstPixels);
+            Reupload(_texture, _displayedPixels);
+            if (_wantsPlayback && isActiveAndEnabled && _decoder == null)
+                _nextFrameTime = 0f;
         }
 
         void Update()
         {
             if (!_wantsPlayback || !isActiveAndEnabled || string.IsNullOrEmpty(_resourcePath)) return;
-            if (_routine != null)
+            if (Time.unscaledTime < _retryAfter) return;
+            if (Time.unscaledTime < _nextFrameTime) return;
+
+            if (_decoder == null)
             {
-                _watchdogDelayFrames = 0;
+                if (!BeginCycle())
+                    _retryAfter = Time.unscaledTime + DecodeErrorRetrySeconds;
                 return;
             }
 
-            if (_gifBytes == null && !TryLoadGifBytes()) return;
-
-            if (_watchdogDelayFrames < WatchdogRestartDelayFrames)
-            {
-                _watchdogDelayFrames++;
-                return;
-            }
-
-            BeginPlayback(soft: true);
+            Advance();
         }
 
         public void Play(string resourcesPath)
@@ -90,7 +97,6 @@ namespace Masu.UI
             _wantsPlayback = true;
             _resourcePath = resourcesPath;
             _pendingResourcePath = resourcesPath;
-            _watchdogDelayFrames = 0;
             if (!isActiveAndEnabled)
                 return;
             BeginPlayback(soft: !pathChanged && _gifBytes != null);
@@ -101,14 +107,14 @@ namespace Masu.UI
             _wantsPlayback = false;
             PreserveAspect = false;
             _pendingResourcePath = null;
-            _watchdogDelayFrames = 0;
-            StopCoroutineIfRunning();
+            DisposeDecoder();
             DestroyDisplayedSprite();
             ClearFirstFrame();
             if (_image != null)
                 _image.sprite = null;
             _gifBytes = null;
             _bytesPath = null;
+            _displayedPixels = null;
         }
 
         public void SetResourcePath(string resourcesPath) => Play(resourcesPath);
@@ -121,7 +127,6 @@ namespace Masu.UI
                 _pendingResourcePath = null;
             }
 
-            StopCoroutineIfRunning();
             if (!soft || _cachedForPath != _resourcePath)
             {
                 DestroyDisplayedSprite();
@@ -129,10 +134,11 @@ namespace Masu.UI
                 if (_image != null) _image.sprite = null;
             }
 
+            DisposeDecoder();
+            _nextFrameTime = 0f;
+            _retryAfter = 0f;
             if (!TryLoadGifBytes())
                 return;
-
-            _routine = StartCoroutine(PlayLoop());
         }
 
         bool TryLoadGifBytes()
@@ -162,103 +168,77 @@ namespace Masu.UI
             return true;
         }
 
-        IEnumerator PlayLoop()
-        {
-            try
-            {
-                if (_gifBytes == null || _gifBytes.Length == 0)
-                    yield break;
-
-                if (!HasFirstFrame())
-                {
-                    if (!TryCacheFirstFrame())
-                    {
-                        yield return new WaitForSecondsRealtime(DecodeErrorRetrySeconds);
-                        yield break;
-                    }
-                }
-
-                while (isActiveAndEnabled && _wantsPlayback)
-                    yield return PlayCachedLoop();
-            }
-            finally
-            {
-                _routine = null;
-            }
-        }
-
         /// <summary>
-        /// 先頭フレームはキャッシュを即表示し、次フレームのデコードは表示中に済ませる。
-        /// ループ境界でデコーダを作り直してから描くと、その間だけ絵が止まる。
+        /// 待ちはコルーチンにしない。フォーカス移動やオブジェクトの無効化で
+        /// WaitForSeconds が戻らないと、再生中フラグだけ残って絵が止まったままになる。
         /// </summary>
-        IEnumerator PlayCachedLoop()
+        bool BeginCycle()
         {
-            ShowSprite(_firstSprite);
+            if (!TryLoadGifBytes()) return false;
+            if (!HasFirstFrame() && !TryCacheFirstFrame()) return false;
 
-            GifDecoder decoder = null;
+            ShowSprite(_firstSprite);
+            DisposeDecoder();
             try
             {
-                decoder = new GifDecoder(_gifBytes);
+                _decoder = new GifDecoder(_gifBytes);
+                _decoder.NextImage();
+                _upcoming = _decoder.NextImage();
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[MasuUiGifPlayer] open failed ({_resourcePath}): {ex.Message}");
+                DisposeDecoder();
+                return false;
             }
 
-            if (decoder == null)
-            {
-                yield return new WaitForSecondsRealtime(DecodeErrorRetrySeconds);
-                yield break;
-            }
-
-            using (decoder)
-            {
-                var decodeStart = Time.realtimeSinceStartup;
-                GifFrame upcoming = null;
-                try
-                {
-                    decoder.NextImage();
-                    upcoming = decoder.NextImage();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[MasuUiGifPlayer] decode error ({_resourcePath}): {ex.Message}");
-                }
-
-                yield return WaitRemaining(_firstDelay, decodeStart);
-                if (!isActiveAndEnabled || !_wantsPlayback) yield break;
-
-                while (upcoming != null)
-                {
-                    if (!TryApplyFrame(upcoming))
-                    {
-                        yield return new WaitForSecondsRealtime(DecodeErrorRetrySeconds);
-                        yield break;
-                    }
-
-                    var delay = FrameDelay(upcoming);
-                    decodeStart = Time.realtimeSinceStartup;
-                    try
-                    {
-                        upcoming = decoder.NextImage();
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[MasuUiGifPlayer] decode error ({_resourcePath}): {ex.Message}");
-                        upcoming = null;
-                    }
-
-                    yield return WaitRemaining(delay, decodeStart);
-                    if (!isActiveAndEnabled || !_wantsPlayback) yield break;
-                }
-            }
+            _nextFrameTime = Time.unscaledTime + _firstDelay;
+            return true;
         }
 
-        static IEnumerator WaitRemaining(float delaySeconds, float startedAt)
+        void Advance()
         {
-            var left = delaySeconds - (Time.realtimeSinceStartup - startedAt);
-            if (left > 0.0005f)
-                yield return new WaitForSecondsRealtime(left);
+            if (_upcoming == null)
+            {
+                if (!BeginCycle())
+                    _retryAfter = Time.unscaledTime + DecodeErrorRetrySeconds;
+                return;
+            }
+
+            var delay = FrameDelay(_upcoming);
+            if (!TryApplyFrame(_upcoming))
+            {
+                DisposeDecoder();
+                _retryAfter = Time.unscaledTime + DecodeErrorRetrySeconds;
+                return;
+            }
+
+            try
+            {
+                _upcoming = _decoder.NextImage();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[MasuUiGifPlayer] decode error ({_resourcePath}): {ex.Message}");
+                _upcoming = null;
+            }
+
+            _nextFrameTime = Time.unscaledTime + delay;
+        }
+
+        void DisposeDecoder()
+        {
+            _upcoming = null;
+            if (_decoder == null) return;
+            _decoder.Dispose();
+            _decoder = null;
+        }
+
+        static void Reupload(Texture2D texture, Color32[] pixels)
+        {
+            if (texture == null || pixels == null || pixels.Length != texture.width * texture.height) return;
+            texture.SetPixels32(pixels);
+            texture.Apply(false);
         }
 
         bool HasFirstFrame() =>
@@ -273,9 +253,12 @@ namespace Masu.UI
                     var frame = decoder.NextImage();
                     if (frame == null) return false;
                     ClearFirstFrame();
-                    _firstTexture = frame.CreateTexture();
+                    CopyInto(ref _firstPixels, frame.RawImage);
+                    _firstTexture = new Texture2D(frame.Width, frame.Height, TextureFormat.ARGB32, false);
                     _firstTexture.filterMode = FilterMode.Bilinear;
                     _firstTexture.wrapMode = TextureWrapMode.Clamp;
+                    _firstTexture.SetPixels32(_firstPixels);
+                    _firstTexture.Apply(false);
                     _firstSprite = Sprite.Create(
                         _firstTexture,
                         new Rect(0, 0, _firstTexture.width, _firstTexture.height),
@@ -341,7 +324,8 @@ namespace Masu.UI
                 };
             }
 
-            _texture.SetPixels32(frame.RawImage);
+            CopyInto(ref _displayedPixels, frame.RawImage);
+            _texture.SetPixels32(_displayedPixels);
             _texture.Apply(false);
             if (_sprite == null)
             {
@@ -370,13 +354,20 @@ namespace Masu.UI
             }
 
             _cachedForPath = null;
+            _firstPixels = null;
         }
 
-        void StopCoroutineIfRunning()
+        static void CopyInto(ref Color32[] dest, Color32[] source)
         {
-            if (_routine == null) return;
-            StopCoroutine(_routine);
-            _routine = null;
+            if (source == null || source.Length == 0)
+            {
+                dest = Array.Empty<Color32>();
+                return;
+            }
+
+            if (dest == null || dest.Length != source.Length)
+                dest = new Color32[source.Length];
+            Array.Copy(source, dest, source.Length);
         }
 
         void DestroyDisplayedSprite()

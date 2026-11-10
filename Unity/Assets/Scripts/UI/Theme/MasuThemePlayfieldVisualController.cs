@@ -388,9 +388,9 @@ namespace Masu.UI
             MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
             player.PreserveAspect = overlay.Layout is MasuThemeGameOverlayLayout.CenterFit
                 or MasuThemeGameOverlayLayout.BottomRightFit;
+            player.gameObject.SetActive(true);
             var path = MasuThemeResourceCache.TitleArtPath(gifFileName);
             player.Play(path);
-            player.gameObject.SetActive(true);
             MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
             PinLayerAboveBackground(player.transform);
         }
