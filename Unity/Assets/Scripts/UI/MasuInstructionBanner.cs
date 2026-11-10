@@ -21,6 +21,55 @@ namespace Masu.UI
 
         private const float FallbackBannerHeight = 146f;
 
+        public static float BannerHeightForWidth(float width)
+        {
+            var tex = Resources.Load<Texture2D>("TitleArt/" + BannerResource);
+            return tex != null
+                ? width * tex.height / (float)tex.width
+                : FallbackBannerHeight * (width / BannerWidth);
+        }
+
+        /// <summary>画面上部中央の竹帯＋説明文（ビジュアル選択など）。</summary>
+        public static Text CreateCentered(Transform parent, string message, float width, float topOffsetFromPanelTop)
+        {
+            var bannerHeight = BannerHeightForWidth(width);
+
+            var root = new GameObject("InstructionBanner", typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            root.transform.SetAsFirstSibling();
+            var rt = root.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -topOffsetFromPanelTop);
+            rt.sizeDelta = new Vector2(width, bannerHeight);
+
+            AddBannerArt(root.transform);
+
+            var label = MasuUiFactory.CreateText(root.transform, "Caption", message, FontSize, BannerTextBlack,
+                TextAnchor.MiddleCenter);
+            MasuFonts.ApplyInstructionBannerMincho(label, FontSize);
+            var labelRt = label.rectTransform;
+            MasuUiFactory.Stretch(labelRt, TextPaddingLeft, TextPaddingVertical, TextPaddingRight,
+                TextPaddingVertical);
+            label.transform.SetAsLastSibling();
+            return label;
+        }
+
+        static void AddBannerArt(Transform root)
+        {
+            var tex = Resources.Load<Texture2D>("TitleArt/" + BannerResource);
+            if (tex == null) return;
+            var artGo = new GameObject("Art", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            artGo.transform.SetParent(root, false);
+            artGo.transform.SetAsFirstSibling();
+            var img = artGo.GetComponent<Image>();
+            img.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+            img.type = Image.Type.Simple;
+            img.preserveAspect = false;
+            img.raycastTarget = false;
+            MasuUiFactory.Stretch(artGo.GetComponent<RectTransform>());
+        }
+
         public static Text Create(Transform parent, string message)
         {
             var tex = Resources.Load<Texture2D>("TitleArt/" + BannerResource);

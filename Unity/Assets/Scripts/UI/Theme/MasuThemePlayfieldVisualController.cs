@@ -17,11 +17,37 @@ namespace Masu.UI
             MasuThemeResourceCache.WarmPlayfield(definition);
             var visual = MasuThemeGameVisualConfig.FromDefinition(definition);
 
+            StopOverlayPlayback();
             ApplyBackground(visual);
             if (UsesFullBleedOverlayPlayBackground(visual))
                 PrepareBackdropFallback(visual.BackgroundFallback);
-            StopOverlayPlayback();
             ApplyOverlay(visual.Overlay, definition);
+            ApplyBakedVideoFallbackIfNeeded(definition, visual);
+        }
+
+        /// <summary>MP4 未配置・再生失敗時、焼き込み前のプロシージャル実装へフォールバック。</summary>
+        void ApplyBakedVideoFallbackIfNeeded(MasuThemeDefinition definition, MasuThemeGameVisualConfig visual)
+        {
+            if (definition == null) return;
+            if (definition.GameOverlayKind != MasuThemeGameOverlayKind.Video) return;
+
+            var videoPlaying = visual.Overlay.Kind == MasuThemeGameOverlayKind.Video
+                               && _bindings?.GameOverlayVideo != null
+                               && _bindings.GameOverlayVideo.gameObject.activeSelf;
+            if (videoPlaying) return;
+
+            switch (definition.ThemeId)
+            {
+                case "corona":
+                    ShowMandelbrot(visual.BackgroundFallback);
+                    break;
+                case "cosmo":
+                    ShowJulia(visual.BackgroundFallback);
+                    break;
+                case "grid":
+                    ShowRedGridPulse(visual.BackgroundFallback);
+                    break;
+            }
         }
 
         public void StopGameplayOverlays()
@@ -363,8 +389,8 @@ namespace Masu.UI
             player.PreserveAspect = overlay.Layout is MasuThemeGameOverlayLayout.CenterFit
                 or MasuThemeGameOverlayLayout.BottomRightFit;
             var path = MasuThemeResourceCache.TitleArtPath(gifFileName);
-            player.gameObject.SetActive(true);
             player.Play(path);
+            player.gameObject.SetActive(true);
             MasuThemeOverlayRectLayout.ApplyGifOverlay(rt, overlay.Layout);
             PinLayerAboveBackground(player.transform);
         }
@@ -409,21 +435,24 @@ namespace Masu.UI
 
             host.gameObject.SetActive(true);
             if (!host.TryPlayResource(overlay.ResourceKey))
+            {
                 Debug.LogWarning($"[MasuTheme] Video overlay failed: TitleArt/{overlay.ResourceKey}");
-            else
-                PinLayerAboveBackground(host.transform);
+                SetVideoLayerActive(false);
+                return;
+            }
+
+            PinLayerAboveBackground(host.transform);
         }
 
         private void StopOverlayPlayback()
         {
             StopStaticScroll();
             SetStaticLayerActive(false);
-            SetGifLayerActive(false);
             SetBuddhaMandalaOrbitActive(false);
-            SetVideoLayerActive(false);
-
             _bindings?.GameOverlayGif?.StopPlayback();
             _bindings?.GameOverlayVideo?.StopPlayback();
+            SetGifLayerActive(false);
+            SetVideoLayerActive(false);
         }
 
         private void StopStaticScroll()

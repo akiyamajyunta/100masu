@@ -57,18 +57,24 @@ namespace Masu.UI
                 gameBackgroundKind: MasuThemeGameBackgroundKind.GameOfLife);
             yield return CreateRuntime("corona", "コロナ", MasuThemePalette.Corona(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.08f, 0.03f, 0.01f),
-                gameBackgroundKind: MasuThemeGameBackgroundKind.Mandelbrot);
+                gameBackdropFallback: new Color32(0x08, 0x03, 0x01, 0xff),
+                overlayVideo: "theme_mandelbrot_background",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
             yield return CreateRuntime("cosmo", "コスモ", MasuThemePalette.Cosmo(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.02f, 0.04f, 0.07f),
-                gameBackgroundKind: MasuThemeGameBackgroundKind.Julia);
+                gameBackdropFallback: new Color32(0x06, 0x0a, 0x12, 0xff),
+                overlayVideo: "theme_julia_background",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
             yield return CreateRuntime("cosmic", "コズミック", MasuThemePalette.Cosmic(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.04f, 0.05f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.LcdFireworks,
                 gameBackdropFallback: Color.black);
             yield return CreateRuntime("grid", "グリッド", MasuThemePalette.Grid(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.06f, 0.02f, 0.02f),
-                gameBackgroundKind: MasuThemeGameBackgroundKind.RedGridPulse,
-                gameBackdropFallback: Color.black);
+                gameBackdropFallback: Color.black,
+                overlayVideo: "theme_red_grid_pulse_background",
+                overlayGif: "theme_red_grid_pulse_background.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
             yield return CreateRuntime("data", "データ", MasuThemePalette.Data(),
                 menuPhoto: "", gameBg: "", menuFallback: new Color(0.04f, 0.06f, 0.13f),
                 gameBackgroundKind: MasuThemeGameBackgroundKind.BubbleSort,

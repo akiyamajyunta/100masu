@@ -17,3 +17,7 @@ Unity/My project/
 **/[Oo]bj/
 **/[Bb]uild/
 **/[Bb]uilds/
+
+# GitHub の 100MB 制限を超えるプレイヤービルドデータ
+100masu-build/100masu_Data/resources.assets
+100masu-build/100masu_Data/resources.resource

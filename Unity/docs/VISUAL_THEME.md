@@ -27,7 +27,8 @@
 
 コードで `OptionsVisual` パネルに自動構築されます。
 
-- **6列グリッド**のカード（`MasuVisualThemeLayout` でサイズ・間隔を調整）
+- **6列グリッド**のカード（テーマ名帯＋グリッドは画面中央寄せ）
+- 上部左：従来どおり竹帯「お好みのビジュアルをお選びください」→ その下中央に **竹帯**（`theme_visual_theme_name_banner.png`）＋選択中テーマ名
 - 各カードは **黒縁＋白枠**、中に **TitleArt サムネイル**（`MasuThemeCardPreview` / `theme_card_*.jpg` 等）
 - タイル内のテーマ名テキストはなし（選択中名称は上部ラベルのみ）
 - サムネ再生成: `python Unity/tools/bake_theme_card_previews.py`（プレイ背景 HTML／MP4 フレーム相当）
@@ -88,10 +89,10 @@
 | `pipe` | パイプ | 3D パイプ MP4（`TitleArt/theme_pipe_screensaver.mp4`・`pipe-screensaver-background.html` 相当・全面。未配置時は GIF フォールバック）＋黒／シアン系パレット |
 | `saimin` | 催眠 | 錯視トンネル MP4（`TitleArt/theme_saimin_tunnel.mp4`・`tunnel-illusion-background.html` 相当・全面。未配置時は GIF フォールバック）＋モノクロ系パレット |
 | `aurora` | オーロラ | リボン状オーロラ GIF（`TitleArt/theme_aurora_ribbon.gif.bytes`・全面）＋シアン／夜空系パレット |
-| `corona` | コロナ | マンデルブロ背景（`MandelbrotBackground`）＋暖色パレット |
-| `cosmo` | コスモ | ジュリア背景（`JuliaBackground` / `julia-background.js` 相当）＋シアン系パレット |
+| `corona` | コロナ | マンデルブロ MP4（`TitleArt/theme_mandelbrot_background.mp4`・`mandelbrot-background.html` 相当・全面）＋暖色パレット |
+| `cosmo` | コスモ | ジュリア MP4（`TitleArt/theme_julia_background.mp4`・`julia-background.html` 相当・全面）＋シアン系パレット。MP4 失敗時は `JuliaBackground` |
 | `cosmic` | コズミック | LCD 花火（`LcdFireworksBackground`・Game &amp; Watch 風）＋白／黒パレット |
-| `grid` | グリッド | 赤波打ちグリッド＋暗色レインボーパルス（`RedGridPulseBackground`）＋赤系パレット |
+| `grid` | グリッド | 赤グリッドパルス MP4（`TitleArt/theme_red_grid_pulse_background.mp4`・`game-watch-red-grid-pulse-background.html` 相当・全面）＋ GIF フォールバック。MP4 失敗時は `RedGridPulseBackground` |
 | `dessert` | デザート | `theme_dessert_game_bg`（アフタヌーンティー風）＋クリーム／ブラウン系パレット |
 | `pop` | ポップ | 同心円ドット＋STG弾幕（`RadialDotPatternBackground`・HTML preset 連続弾幕相当）＋パステル系パレット |
 | `buddha` | 仏 | 涅槃像＋右下曼荼羅（`theme_buddha_mandala.png`＋`MasuThemeBuddhaMandalaOrbitView`）。`Unity/docs/BUDDHA_MANDALA_ORBIT.md` |

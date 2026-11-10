@@ -8,6 +8,7 @@ namespace Masu.UI
     /// <summary>オプション＞ビジュアルのテーマカードグリッド（キーボード＋マウス）。</summary>
     public sealed class MasuVisualThemeSelectUI
     {
+        private RectTransform _themeNameBanner;
         private Text _selectedName;
         private Text _hint;
         private readonly List<ThemeCard> _cards = new();
@@ -36,20 +37,20 @@ namespace Masu.UI
         {
             var themes = MasuThemeCatalog.All;
             var activeId = MasuThemeManager.ActiveDefinition?.ThemeId;
-
-            _selectedName = MasuUiFactory.CreateText(panel, "ThemeName", "", MasuVisualThemeLayout.SelectedNameFontSize,
-                MasuTheme.MenuTitleText, TextAnchor.UpperCenter);
-            var nameRt = _selectedName.rectTransform;
-            nameRt.anchorMin = nameRt.anchorMax = new Vector2(0.5f, 1f);
-            nameRt.pivot = new Vector2(0.5f, 1f);
-            nameRt.anchoredPosition = new Vector2(0, MasuVisualThemeLayout.SelectedNameTopY);
-            nameRt.sizeDelta = new Vector2(720, 56);
-            MasuFonts.ApplyRankingMincho(_selectedName, MasuVisualThemeLayout.SelectedNameFontSize, bold: true);
-
             var count = themes.Count;
+
+            _themeNameBanner = CreateThemeNameBanner(panel, count);
+
+            _selectedName = MasuUiFactory.CreateText(_themeNameBanner, "ThemeName", "",
+                MasuVisualThemeLayout.SelectedNameFontSize, MasuTheme.MenuTitleText, TextAnchor.MiddleCenter);
+            MasuFonts.ApplyRankingMincho(_selectedName, MasuVisualThemeLayout.SelectedNameFontSize, bold: true);
+            MasuUiFactory.Stretch(_selectedName.rectTransform, 24f, 8f, 24f, 8f);
+
             var cols = MasuVisualThemeLayout.GridColumns;
             var gridW = cols * MasuVisualThemeLayout.GridCellSize + (cols - 1) * MasuVisualThemeLayout.GridSpacingX;
             var startX = -gridW * 0.5f + MasuVisualThemeLayout.GridCellSize * 0.5f;
+            var firstRowY = MasuVisualThemeLayout.GridFirstRowCenterY(count);
+            var rowStep = MasuVisualThemeLayout.GridCellSize + MasuVisualThemeLayout.GridSpacingY;
 
             for (var i = 0; i < count; i++)
             {
@@ -57,8 +58,7 @@ namespace Masu.UI
                 var row = i / cols;
                 var col = i % cols;
                 var x = startX + col * (MasuVisualThemeLayout.GridCellSize + MasuVisualThemeLayout.GridSpacingX);
-                var y = MasuVisualThemeLayout.GridTopY
-                        - row * (MasuVisualThemeLayout.GridCellSize + MasuVisualThemeLayout.GridSpacingY);
+                var y = firstRowY - row * rowStep;
 
                 var card = CreateCard(panel, def, new Vector2(x, y));
                 _cards.Add(card);
@@ -77,6 +77,36 @@ namespace Masu.UI
             hintRt.sizeDelta = new Vector2(920, 36);
 
             RefreshSelection(applyTheme: false);
+        }
+
+        static RectTransform CreateThemeNameBanner(Transform panel, int themeCount)
+        {
+            var width = MasuVisualThemeLayout.ThemeNameBannerWidth;
+            var height = MasuVisualThemeLayout.ThemeNameBannerHeight(width);
+            var top = MasuVisualThemeLayout.ThemeNameBannerTop(themeCount);
+
+            var root = new GameObject("ThemeNameBanner", typeof(RectTransform));
+            root.transform.SetParent(panel, false);
+            var rt = root.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -top);
+            rt.sizeDelta = new Vector2(width, height);
+
+            var tex = Resources.Load<Texture2D>("TitleArt/" + MasuVisualThemeLayout.ThemeNameBannerResource);
+            if (tex != null)
+            {
+                var artGo = new GameObject("Art", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                artGo.transform.SetParent(root.transform, false);
+                var img = artGo.GetComponent<Image>();
+                img.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                img.type = Image.Type.Simple;
+                img.preserveAspect = false;
+                img.raycastTarget = false;
+                MasuUiFactory.Stretch(artGo.GetComponent<RectTransform>());
+            }
+
+            return rt;
         }
 
         private ThemeCard CreateCard(Transform panel, MasuThemeDefinition def, Vector2 pos)
@@ -161,11 +191,11 @@ namespace Masu.UI
 
         public void CollectEntranceTargets(List<RectTransform> targets)
         {
+            if (_themeNameBanner != null)
+                targets.Add(_themeNameBanner);
             foreach (var card in _cards)
                 if (card.Root != null)
                     targets.Add(card.Root);
-            if (_selectedName != null)
-                targets.Add(_selectedName.rectTransform);
         }
 
         public bool HandleInput()
