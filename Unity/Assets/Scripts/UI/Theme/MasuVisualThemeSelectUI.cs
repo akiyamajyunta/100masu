@@ -157,9 +157,10 @@ namespace Masu.UI
             button.onClick.AddListener(() =>
             {
                 var idx = _cards.FindIndex(c => c.Definition == captured);
-                if (idx >= 0)
+                if (idx >= 0 && idx != _cursor)
                 {
                     _cursor = idx;
+                    MasuMenuSfx.PlayCursor();
                     RefreshSelection(applyTheme: true);
                 }
             });
@@ -202,40 +203,33 @@ namespace Masu.UI
         {
             if (_cards.Count == 0) return false;
             var cols = MasuVisualThemeLayout.GridColumns;
-            var changed = false;
+            var previous = _cursor;
 
             if (Input.GetKeyDown(KeyCode.LeftArrow))
-            {
                 _cursor = Mathf.Max(0, _cursor - 1);
-                changed = true;
-            }
             else if (Input.GetKeyDown(KeyCode.RightArrow))
-            {
                 _cursor = Mathf.Min(_cards.Count - 1, _cursor + 1);
-                changed = true;
-            }
             else if (Input.GetKeyDown(KeyCode.UpArrow))
-            {
                 _cursor = Mathf.Max(0, _cursor - cols);
-                changed = true;
-            }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
-            {
                 _cursor = Mathf.Min(_cards.Count - 1, _cursor + cols);
-                changed = true;
-            }
 
-            if (changed)
+            if (_cursor != previous)
+            {
+                MasuMenuSfx.PlayCursor();
                 RefreshSelection(applyTheme: true);
+            }
 
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
+                MasuMenuSfx.PlayConfirm();
                 _onBack?.Invoke();
                 return true;
             }
 
             if (Input.GetKeyDown(KeyCode.Escape))
             {
+                MasuMenuSfx.PlayCancel();
                 _onBack?.Invoke();
                 return true;
             }

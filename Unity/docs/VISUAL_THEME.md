@@ -97,6 +97,11 @@
 | `energy` | エナジー | レーダー GIF（`theme_energy.gif.bytes`・全面・無限ループ） |
 | `disco` | ディスコ | 星雲 GIF（`theme_disco.gif.bytes`・全面・無限ループ） |
 | `tile` | タイル | バーコードスクロール GIF（`theme_tile.gif.bytes`・全面・30フレーム周期で無限ループ） |
+| `bunkou` | 分光 | スペクトル格子の静止背景（`theme_bunkou_game_bg.png`・最近傍拡大・ポイントフィルタ） |
+| `toukousen` | 等高線 | 等高線 GIF（`theme_toukousen.gif.bytes`・全面・無限ループ） |
+| `quilt` | キルト菱形 | 菱形キルト GIF（`theme_quilt.gif.bytes`・全面・無限ループ） |
+| `white` | ホワイト | プレイ背景は白一色。文字は黒 |
+| `black` | ブラック | プレイ背景は黒一色。文字は白 |
 | `corona` | コロナ | マンデルブロ MP4（`TitleArt/theme_mandelbrot_background.mp4`・`mandelbrot-background.html` 相当・全面）＋暖色パレット |
 | `cosmo` | コスモ | ジュリア MP4（`TitleArt/theme_julia_background.mp4`・`julia-background.html` 相当・全面）＋シアン系パレット。MP4 失敗時は `JuliaBackground` |
 | `cosmic` | コズミック | LCD 花火（`LcdFireworksBackground`・Game &amp; Watch 風）＋白／黒パレット |

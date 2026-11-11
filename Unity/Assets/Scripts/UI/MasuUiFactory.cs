@@ -6,6 +6,18 @@ namespace Masu.UI
 {
     public static class MasuUiFactory
     {
+        static Sprite _whiteSprite;
+
+        public static Sprite WhiteSprite()
+        {
+            if (_whiteSprite != null) return _whiteSprite;
+            var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            tex.SetPixel(0, 0, Color.white);
+            tex.Apply();
+            _whiteSprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            return _whiteSprite;
+        }
+
         public static GameObject CreatePanel(Transform parent, string name, Color bg)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));

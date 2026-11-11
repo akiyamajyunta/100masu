@@ -129,7 +129,11 @@ namespace Masu.UI
         private MasuVisualThemeSelectUI _visualThemeSelect;
         private Text[] _optionsEffectsLabels;
         private int _optionsEffectsCursor;
-        private static readonly string[] OptionsMenuItems = { "ビジュアル", "エフェクト", "戻る" };
+        private Text[] _optionsSoundLabels;
+        private readonly Image[][] _optionsSoundBars = new Image[2][];
+        private int _optionsSoundCursor;
+        private static readonly string[] OptionsMenuItems = { "ビジュアル", "エフェクト", "サウンド", "戻る" };
+        private static readonly string[] OptionsSoundItems = { "SE", "BGM" };
         private Text[] _rankingOpTabs;
         private Text _rankingGridLineLabel;
         private RectTransform _rankingGridSelector;
@@ -229,6 +233,7 @@ namespace Masu.UI
         {
             _store = ScoreStore.Load();
             MasuVisualSettings.Load();
+            MasuSoundSettings.Load();
             MasuThemeManager.Initialize();
             var idx = MasuDisplaySettings.LoadSavedIndex();
             var ask = MasuDisplaySettings.LoadAskEveryTime();
@@ -394,6 +399,7 @@ namespace Masu.UI
                 case AppScreen.Options: HandleOptionsInput(); break;
                 case AppScreen.OptionsVisual: HandleOptionsVisualInput(); break;
                 case AppScreen.OptionsEffects: HandleOptionsEffectsInput(); break;
+                case AppScreen.OptionsSound: HandleOptionsSoundInput(); break;
                 case AppScreen.Game:
                     if (_gridView == null) break;
                     // セル演出は毎フレーム進める（イントロ・採点中も含む）
@@ -559,8 +565,11 @@ namespace Masu.UI
             MasuInstructionBanner.Create(optionsEffectsPanel.transform, "お好みのエフェクトをお選びください");
             _menuPanels[AppScreen.OptionsEffects] = optionsEffectsPanel;
 
+            BuildOptionsSoundPanel();
+
             CacheLabelBasePositions(_optionsLabels);
             CacheLabelBasePositions(_optionsEffectsLabels);
+            CacheLabelBasePositions(_optionsSoundLabels);
         }
 
         private static string[] OptionsEffectsMenuLabels() =>
@@ -645,7 +654,7 @@ namespace Masu.UI
             screen == AppScreen.PlayStyle || screen == AppScreen.Mode || screen == AppScreen.Grid
             || screen == AppScreen.ScoreRanking
             || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
-            || screen == AppScreen.OptionsEffects;
+            || screen == AppScreen.OptionsEffects || screen == AppScreen.OptionsSound;
 
         private Image CreateTitleArtImage(Transform parent, string name, string resourceName, int cropPx = 0)
         {
@@ -1471,7 +1480,7 @@ namespace Masu.UI
             IsForestMenuScreen(screen)
             || screen == AppScreen.ScoreRanking
             || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
-            || screen == AppScreen.OptionsEffects;
+            || screen == AppScreen.OptionsEffects || screen == AppScreen.OptionsSound;
 
         private void StopScreenEntrance()
         {
@@ -1646,6 +1655,8 @@ namespace Masu.UI
                 _visualThemeSelect?.CollectEntranceTargets(targets);
             else if (screen == AppScreen.OptionsEffects)
                 CollectLabelEntranceTargets(_optionsEffectsLabels, targets);
+            else if (screen == AppScreen.OptionsSound)
+                CollectOptionsSoundEntranceTargets(targets);
         }
 
         private static void CollectLabelEntranceTargets(Text[] labels, List<RectTransform> targets)
@@ -1838,6 +1849,7 @@ namespace Masu.UI
         private void MoveForestHighlight(MasuForestSelectMenu menu, int index)
         {
             if (menu == null) return;
+            MasuMenuSfx.PlayCursor();
             if (_forestHighlightRoutine != null)
                 StopCoroutine(_forestHighlightRoutine);
             _forestHighlightRoutine = StartCoroutine(AnimateForestHighlight(menu, index));
@@ -1865,6 +1877,7 @@ namespace Masu.UI
             AppScreen.Title => _titleLabels,
             AppScreen.Options => _optionsLabels,
             AppScreen.OptionsEffects => _optionsEffectsLabels,
+            AppScreen.OptionsSound => _optionsSoundLabels,
             _ => null
         };
 
@@ -1924,6 +1937,8 @@ namespace Masu.UI
                 RefreshOptionsMenuHighlights();
             if (_screen == AppScreen.OptionsEffects)
                 RefreshOptionsEffectsMenuHighlights();
+            if (_screen == AppScreen.OptionsSound)
+                RefreshOptionsSoundHighlight();
 
             if (_screen == AppScreen.ScoreRanking && _rankingOpTabs != null)
             {
@@ -1997,6 +2012,7 @@ namespace Masu.UI
         private void DecideTitleMenu(Text label, Action then)
         {
             if (_menuBusy) return;
+            MasuMenuSfx.PlayConfirm();
             _menuBusy = true;
             StartCoroutine(DecideTitleMenuRoutine(label, then));
         }
@@ -2098,6 +2114,7 @@ namespace Masu.UI
         private void Decide(Text label, Action then, Color? flashBaseColor = null)
         {
             if (_menuBusy) return;
+            MasuMenuSfx.PlayConfirm();
             _menuBusy = true;
             StartCoroutine(DecideRoutine(label, then, flashBaseColor));
         }
@@ -2106,6 +2123,7 @@ namespace Masu.UI
         private void DecideOverlay(Text label, Action then)
         {
             if (_menuBusy) return;
+            MasuMenuSfx.PlayConfirm();
             _menuBusy = true;
             StartCoroutine(DecideOverlayRoutine(label, then));
         }
@@ -2763,12 +2781,14 @@ namespace Masu.UI
                 _launcher.SelectedIndex = NavVertical(_launcher.SelectedIndex, -1, n);
                 MasuDisplaySettings.SelectDisplayOptionIndex(_launcher.SelectedIndex);
                 _launcher.Refresh();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 _launcher.SelectedIndex = NavVertical(_launcher.SelectedIndex, 1, n);
                 MasuDisplaySettings.SelectDisplayOptionIndex(_launcher.SelectedIndex);
                 _launcher.Refresh();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Space))
             {
@@ -2781,6 +2801,7 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
+                MasuMenuSfx.PlayCancel();
                 Application.Quit();
             }
         }
@@ -2823,14 +2844,19 @@ namespace Masu.UI
             {
                 _pauseMenu = NavVertical(_pauseMenu, -1, 2);
                 RefreshPauseMenu();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 _pauseMenu = NavVertical(_pauseMenu, 1, 2);
                 RefreshPauseMenu();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
                 ClosePauseMenu();
+            }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
                 var choice = _pauseMenu;
@@ -2879,18 +2905,164 @@ namespace Masu.UI
             ShowScreen(AppScreen.OptionsEffects);
         }
 
+        private void OpenOptionsSoundScreen()
+        {
+            _optionsSoundCursor = 0;
+            ForgetListCursor(_optionsSoundLabels);
+            RefreshOptionsSoundBars();
+            ShowScreen(AppScreen.OptionsSound);
+        }
+
+        private void BuildOptionsSoundPanel()
+        {
+            var panel = MasuUiFactory.CreatePanel(_menuRoot, "OptionsSound", Color.clear);
+            MasuUiFactory.Stretch(panel.GetComponent<RectTransform>());
+            MasuInstructionBanner.Create(panel.transform, "音量を調整してください");
+
+            const float startY = 48f;
+            const float rowStep = 132f;
+            const float barDrop = 54f;
+            const float segmentWidth = 44f;
+            const float segmentHeight = 28f;
+            const float segmentGap = 10f;
+            _optionsSoundLabels = new Text[OptionsSoundItems.Length];
+            for (var row = 0; row < OptionsSoundItems.Length; row++)
+            {
+                var label = MasuUiFactory.CreateText(panel.transform, OptionsSoundItems[row], OptionsSoundItems[row],
+                    MasuOptionsLayout.MenuFontSize, RankingTextWhite);
+                label.rectTransform.anchoredPosition = new Vector2(0f, startY - row * rowStep);
+                label.rectTransform.sizeDelta = new Vector2(720f, MasuOptionsLayout.MenuFontSize + 16f);
+                StyleRankingJapanese(label, MasuOptionsLayout.MenuFontSize);
+                _optionsSoundLabels[row] = label;
+
+                var bars = new Image[MasuSoundSettings.MaxLevel + 1];
+                var total = bars.Length * segmentWidth + (bars.Length - 1) * segmentGap;
+                var origin = -total * 0.5f + segmentWidth * 0.5f;
+                const float barFrame = 3f;
+                for (var i = 0; i < bars.Length; i++)
+                {
+                    var frame = new GameObject($"BarFrame{row}_{i}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    frame.transform.SetParent(panel.transform, false);
+                    var frameRt = frame.GetComponent<RectTransform>();
+                    frameRt.anchorMin = frameRt.anchorMax = new Vector2(0.5f, 0.5f);
+                    frameRt.pivot = new Vector2(0.5f, 0.5f);
+                    frameRt.sizeDelta = new Vector2(segmentWidth, segmentHeight);
+                    frameRt.anchoredPosition = new Vector2(origin + i * (segmentWidth + segmentGap),
+                        startY - row * rowStep - barDrop);
+                    var frameImage = frame.GetComponent<Image>();
+                    frameImage.sprite = MasuUiFactory.WhiteSprite();
+                    frameImage.color = Color.black;
+                    frameImage.raycastTarget = false;
+
+                    var seg = new GameObject($"Bar{row}_{i}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                    seg.transform.SetParent(frame.transform, false);
+                    var rt = seg.GetComponent<RectTransform>();
+                    rt.anchorMin = Vector2.zero;
+                    rt.anchorMax = Vector2.one;
+                    rt.offsetMin = new Vector2(barFrame, barFrame);
+                    rt.offsetMax = new Vector2(-barFrame, -barFrame);
+                    var image = seg.GetComponent<Image>();
+                    image.sprite = MasuUiFactory.WhiteSprite();
+                    image.raycastTarget = false;
+                    bars[i] = image;
+                }
+
+                _optionsSoundBars[row] = bars;
+            }
+
+            _menuPanels[AppScreen.OptionsSound] = panel;
+            RefreshOptionsSoundBars();
+        }
+
+        private void RefreshOptionsSoundHighlight()
+        {
+            if (_optionsSoundLabels == null) return;
+            for (var i = 0; i < _optionsSoundLabels.Length; i++)
+                _optionsSoundLabels[i].text = OptionsSoundItems[i];
+            HighlightOverlayItemList(_optionsSoundLabels, _optionsSoundCursor, MasuOptionsLayout.MenuFontSize);
+        }
+
+        private void RefreshOptionsSoundBars()
+        {
+            PaintSoundBar(0, MasuSoundSettings.SeLevel);
+            PaintSoundBar(1, MasuSoundSettings.BgmLevel);
+        }
+
+        private void PaintSoundBar(int row, int level)
+        {
+            var bars = _optionsSoundBars[row];
+            if (bars == null) return;
+            for (var i = 0; i < bars.Length; i++)
+            {
+                if (bars[i] == null) continue;
+                bars[i].color = i <= level ? Color.white : new Color(1f, 1f, 1f, 0.28f);
+            }
+        }
+
+        private void HandleOptionsSoundInput()
+        {
+            if (Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                if (_optionsSoundCursor == 0) return;
+                _optionsSoundCursor = 0;
+                RefreshOptionsSoundHighlight();
+                MasuMenuSfx.PlayCursor();
+            }
+            else if (Input.GetKeyDown(KeyCode.DownArrow))
+            {
+                if (_optionsSoundCursor == 1) return;
+                _optionsSoundCursor = 1;
+                RefreshOptionsSoundHighlight();
+                MasuMenuSfx.PlayCursor();
+            }
+            else if (Input.GetKeyDown(KeyCode.LeftArrow))
+                AdjustOptionsSound(-1);
+            else if (Input.GetKeyDown(KeyCode.RightArrow))
+                AdjustOptionsSound(1);
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuSoundSettings.Apply();
+                MasuMenuSfx.PlayCancel();
+                ShowScreen(AppScreen.Options);
+            }
+        }
+
+        private void AdjustOptionsSound(int delta)
+        {
+            if (_optionsSoundCursor == 0)
+            {
+                var next = Mathf.Clamp(MasuSoundSettings.SeLevel + delta, 0, MasuSoundSettings.MaxLevel);
+                if (next == MasuSoundSettings.SeLevel) return;
+                MasuSoundSettings.SetSeLevel(next);
+                RefreshOptionsSoundBars();
+                MasuMenuSfx.PlayCursor();
+            }
+            else
+            {
+                var next = Mathf.Clamp(MasuSoundSettings.BgmLevel + delta, 0, MasuSoundSettings.MaxLevel);
+                if (next == MasuSoundSettings.BgmLevel) return;
+                MasuSoundSettings.SetBgmLevel(next);
+                RefreshOptionsSoundBars();
+            }
+        }
+
+        private void CollectOptionsSoundEntranceTargets(List<RectTransform> targets) =>
+            CollectLabelEntranceTargets(_optionsSoundLabels, targets);
+
         private void HandleOptionsInput()
         {
-            const int count = 3;
+            var count = OptionsMenuItems.Length;
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 _optionsCursor = NavVertical(_optionsCursor, -1, count);
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 _optionsCursor = NavVertical(_optionsCursor, 1, count);
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
@@ -2899,11 +3071,15 @@ namespace Masu.UI
                 {
                     if (choice == 0) OpenOptionsVisualScreen();
                     else if (choice == 1) OpenOptionsEffectsScreen();
+                    else if (choice == 2) OpenOptionsSoundScreen();
                     else ShowScreen(AppScreen.Title);
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
                 ShowScreen(AppScreen.Title);
+            }
         }
 
         private void HandleOptionsVisualInput() => _visualThemeSelect?.HandleInput();
@@ -2915,11 +3091,13 @@ namespace Masu.UI
             {
                 _optionsEffectsCursor = NavVertical(_optionsEffectsCursor, -1, count);
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 _optionsEffectsCursor = NavVertical(_optionsEffectsCursor, 1, count);
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
@@ -2940,7 +3118,10 @@ namespace Masu.UI
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
                 ShowScreen(AppScreen.Options);
+            }
         }
 
         private void HandleTitleInput()
@@ -2960,6 +3141,7 @@ namespace Masu.UI
                 {
                     _titleMenu = next;
                     RefreshMenuHighlights();
+                    MasuMenuSfx.PlayCursor();
                 }
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
@@ -2969,6 +3151,7 @@ namespace Masu.UI
                 {
                     _titleMenu = next;
                     RefreshMenuHighlights();
+                    MasuMenuSfx.PlayCursor();
                 }
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
@@ -2982,13 +3165,25 @@ namespace Masu.UI
                     else OpenOptionsScreen();
                 });
             }
-            else if (Input.GetKeyDown(KeyCode.Escape)) Application.Quit();
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
+                Application.Quit();
+            }
         }
 
         private void HandleHelpInput()
         {
-            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Escape))
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                MasuMenuSfx.PlayConfirm();
                 ShowScreen(AppScreen.Title);
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
+                ShowScreen(AppScreen.Title);
+            }
         }
 
         private void HandleModeInput()
@@ -3023,7 +3218,10 @@ namespace Masu.UI
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
                 ShowScreen(AppScreen.PlayStyle);
+            }
         }
 
         private void HandleGridInput()
@@ -3058,7 +3256,11 @@ namespace Masu.UI
                     StartCoroutine(GameStartTransition(op, new PlayBoard(_pendingGridSize, mode)));
                 });
             }
-            else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Mode);
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
+                ShowScreen(AppScreen.Mode);
+            }
         }
 
         private void HandlePlayStyleInput()
@@ -3093,7 +3295,10 @@ namespace Masu.UI
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
                 ShowScreen(AppScreen.Title);
+            }
         }
 
         private void HandleRankingInput()
@@ -3102,11 +3307,13 @@ namespace Masu.UI
             {
                 _rankingOpCursor = (_rankingOpCursor - 1 + 4) % 4;
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow))
             {
                 _rankingOpCursor = (_rankingOpCursor + 1) % 4;
                 RefreshMenuHighlights();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.UpArrow))
             {
@@ -3115,6 +3322,7 @@ namespace Masu.UI
                 {
                     _rankingBoardCursor = (_rankingBoardCursor - 1 + n) % n;
                     RefreshMenuHighlights();
+                    MasuMenuSfx.PlayCursor();
                 }
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
@@ -3124,9 +3332,14 @@ namespace Masu.UI
                 {
                     _rankingBoardCursor = (_rankingBoardCursor + 1) % n;
                     RefreshMenuHighlights();
+                    MasuMenuSfx.PlayCursor();
                 }
             }
-            else if (Input.GetKeyDown(KeyCode.Escape)) ShowScreen(AppScreen.Title);
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
+                ShowScreen(AppScreen.Title);
+            }
         }
 
         private void HandleGameInput()
@@ -3242,6 +3455,7 @@ namespace Masu.UI
             _state.MoveFocus(dr, dc);
             if (_state.FocusRow != prevRow || _state.FocusCol != prevCol)
             {
+                MasuMenuSfx.PlayGridCursor();
                 if (MasuDopamineFx.Enabled && _state.Grid.IsPlayCell(prevRow, prevCol)
                     && _state.Cells.TryGetValue((prevRow, prevCol), out var left)
                     && !string.IsNullOrWhiteSpace(left.Value))
@@ -3297,6 +3511,7 @@ namespace Masu.UI
             {
                 _endConfirmChoice = 1 - _endConfirmChoice;
                 RefreshEndConfirmHighlight();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {
@@ -3310,6 +3525,7 @@ namespace Masu.UI
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
             {
+                MasuMenuSfx.PlayCancel();
                 SetEndConfirmVisible(false);
                 UpdateEndGuide();
             }
@@ -3364,11 +3580,13 @@ namespace Masu.UI
             {
                 _resultMenu = NavVertical(_resultMenu, -1, ResultMenuItems.Length);
                 ShowResultPanel();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 _resultMenu = NavVertical(_resultMenu, 1, ResultMenuItems.Length);
                 ShowResultPanel();
+                MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
             {

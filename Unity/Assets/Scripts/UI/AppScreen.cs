@@ -11,7 +11,8 @@ namespace Masu.UI
         ScoreRanking,
         Options,
         OptionsVisual,
-        OptionsEffects
+        OptionsEffects,
+        OptionsSound
     }
 
     public enum ResultView

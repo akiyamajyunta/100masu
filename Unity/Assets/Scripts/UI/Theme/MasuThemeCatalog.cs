@@ -144,6 +144,28 @@ namespace Masu.UI
                 gameBackdropFallback: new Color32(0x10, 0x10, 0x10, 0xff),
                 overlayGif: "theme_tile.gif",
                 overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("bunkou", "分光", MasuThemePalette.Bunkou(),
+                menuPhoto: "", gameBg: "theme_bunkou_game_bg",
+                menuFallback: Color.black,
+                gameBackdropFallback: Color.black);
+            yield return CreateRuntime("toukousen", "等高線", MasuThemePalette.Toukousen(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.01f, 0.06f, 0.03f),
+                gameBackdropFallback: new Color32(0x02, 0x14, 0x08, 0xff),
+                overlayGif: "theme_toukousen.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("quilt", "キルト菱形", MasuThemePalette.Quilt(),
+                menuPhoto: "", gameBg: "", menuFallback: new Color(0.08f, 0.02f, 0.1f),
+                gameBackdropFallback: new Color32(0x14, 0x04, 0x1c, 0xff),
+                overlayGif: "theme_quilt.gif",
+                overlayLayout: MasuThemeGameOverlayLayout.FullBleed);
+            yield return CreateRuntime("white", "ホワイト", MasuThemePalette.White(),
+                menuPhoto: "", gameBg: "",
+                menuFallback: Color.white,
+                gameBackdropFallback: Color.white);
+            yield return CreateRuntime("black", "ブラック", MasuThemePalette.Black(),
+                menuPhoto: "", gameBg: "",
+                menuFallback: Color.black,
+                gameBackdropFallback: Color.black);
             yield return CreateRuntime("dessert", "デザート", MasuThemePalette.Dessert(),
                 menuPhoto: "", gameBg: "theme_dessert_game_bg",
                 menuFallback: new Color(0.96f, 0.92f, 0.88f));
