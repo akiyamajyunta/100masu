@@ -16,6 +16,8 @@ namespace Masu.UI
         private readonly float[] _rowCenterY;
         private readonly Text[] _titleLabels;
 
+        private readonly int _titleSize;
+
         public Text TitleLabel(int index) => _titleLabels[index];
         public float RowY(int index) => _rowCenterY[index];
         public int RowCount => _rowCenterY.Length;
@@ -48,7 +50,7 @@ namespace Masu.UI
                 var cy = rowY[i];
                 var title = MasuUiFactory.CreateText(panelGo.transform, $"Title{i}", rows[i].Title,
                     layout.TitleFontSize, MenuTextBlack, TextAnchor.MiddleCenter);
-                MasuFonts.ApplyMincho(title, layout.TitleFontSize, bold: true);
+                MasuFonts.ApplyMincho(title, layout.TitleFontSize, bold: false);
                 var titleRt = title.rectTransform;
                 titleRt.anchorMin = titleRt.anchorMax = new Vector2(0.5f, 0.5f);
                 titleRt.pivot = new Vector2(0.5f, 0.5f);
@@ -60,11 +62,7 @@ namespace Masu.UI
                 {
                     var sub = MasuUiFactory.CreateText(panelGo.transform, $"Sub{i}", rows[i].Subtitle,
                         layout.SubtitleFontSize, MenuTextBlack, TextAnchor.MiddleCenter);
-                    MasuFonts.Apply(sub, layout.SubtitleFontSize);
-                    sub.fontStyle = FontStyle.Bold;
-                    var glow = sub.gameObject.AddComponent<Outline>();
-                    glow.effectColor = new Color(1f, 1f, 1f, 0.35f);
-                    glow.effectDistance = new Vector2(1.5f, -1.5f);
+                    MasuFonts.ApplyMincho(sub, layout.SubtitleFontSize, bold: false);
                     var subRt = sub.rectTransform;
                     subRt.anchorMin = subRt.anchorMax = new Vector2(0.5f, 0.5f);
                     subRt.pivot = new Vector2(0.5f, 0.5f);
@@ -73,20 +71,32 @@ namespace Masu.UI
                 }
             }
 
-            return new MasuForestSelectMenu(panelGo, highlight, rowY, titles);
+            return new MasuForestSelectMenu(panelGo, highlight, rowY, titles, layout.TitleFontSize);
         }
 
-        private MasuForestSelectMenu(GameObject panel, RectTransform highlight, float[] rowY, Text[] titles)
+        private MasuForestSelectMenu(
+            GameObject panel, RectTransform highlight, float[] rowY, Text[] titles, int titleSize)
         {
             Panel = panel;
             _highlight = highlight;
             _rowCenterY = rowY;
             _titleLabels = titles;
+            _titleSize = titleSize;
+            SetSelected(0);
+        }
+
+        public void SetSelected(int index)
+        {
+            if (_titleLabels == null || _titleLabels.Length == 0) return;
+            index = Mathf.Clamp(index, 0, _titleLabels.Length - 1);
+            for (var i = 0; i < _titleLabels.Length; i++)
+                MasuFonts.ApplyMincho(_titleLabels[i], _titleSize, bold: i == index);
         }
 
         public void SetHighlightIndex(int index, bool immediate)
         {
             index = Mathf.Clamp(index, 0, _rowCenterY.Length - 1);
+            SetSelected(index);
             var y = _rowCenterY[index];
             if (immediate)
                 _highlight.anchoredPosition = new Vector2(_highlight.anchoredPosition.x, y);
@@ -155,8 +165,8 @@ namespace Masu.UI
             layout.BarWidth = 720f;
             layout.BarHeight = count <= 4 ? 140f : 120f;
             layout.TwoRowCenterY = -10f;
-            layout.TitleFontSize = count <= 4 ? 64 : 54;
-            layout.SubtitleFontSize = count <= 4 ? 22 : 20;
+            layout.TitleFontSize = 48;
+            layout.SubtitleFontSize = 22;
             layout.TitleOffsetY = 0f;
             layout.SubtitleOffsetY = -30f;
             return layout;
@@ -169,8 +179,8 @@ namespace Masu.UI
             BarHeight = 244f,
             TwoRowStep = 291f,
             TwoRowCenterY = -16f,
-            TitleFontSize = 96,
-            SubtitleFontSize = 28,
+            TitleFontSize = 72,
+            SubtitleFontSize = 22,
             TitleOffsetY = 40f,
             SubtitleOffsetY = -62f
         };

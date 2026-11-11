@@ -11,7 +11,7 @@ namespace Masu.UI
 
         /// <summary>設計幅（1280×960）。高さは素材の縦横比から算出。</summary>
         public const float BannerWidth = 808f;
-        public const int FontSize = 38;
+        public const int FontSize = 36;
         public const float TextPaddingLeft = 36f;
         public const float TextPaddingRight = 28f;
         public const float TextPaddingVertical = 6f;

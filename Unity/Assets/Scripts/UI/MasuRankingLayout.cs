@@ -4,13 +4,14 @@ namespace Masu.UI
 {
     public static class MasuRankingLayout
     {
-        public const int TitleFontSize = 72;
-        public const int OperationTabFontSize = 38;
-        public const int GridSizeFontSize = 40;
-        public const int GridModeFontSize = 36;
-        public const int GridArrowFontSize = 44;
-        public const int RowFontSize = 36;
-        public const int HintFontSize = 24;
+        public const int TitleFontSize = 44;
+        public const int OperationTabFontSize = 36;
+        public const int GridSizeFontSize = 32;
+        public const int GridModeFontSize = 32;
+        public const int GridArrowFontSize = 32;
+        public const int RowFontSize = 32;
+        public const int ConfirmFigureFontSize = 26;
+        public const int HintFontSize = 22;
 
         public const float RowLineHeight = 44f;
         public const float RankingRowHeight = 40f;
@@ -37,7 +38,7 @@ namespace Masu.UI
             GridSelectorTopY - GridSelectorBlockHeight - GridSelectorToRowsGap;
 
         /// <summary>下部操作ガイドの下端からの余白（記録一覧と重ならないよう確保）。</summary>
-        public const float HintBottomInset = 56f;
+        public const float HintBottomInset = 40f;
         public const float HintHeight = 36f;
         /// <summary>記録10行目の下端とヒント上端の最小間隔（設計座標）。</summary>
         public const float RankingListBottomClearance = 20f;

@@ -7,7 +7,7 @@ namespace Masu.UI
     {
         /// <summary>赤枠相当：英大文字行13キー分の見かけ幅（1280 基準）。</summary>
         public const float KeyboardWidth = 532f;
-        public const float KeyFontSize = 36f;
+        public const float KeyFontSize = 28f;
         public const float RowStep = 34f;
         /// <summary>画面下端から最下段キー行までの余白。</summary>
         public const float BottomMargin = 100f;

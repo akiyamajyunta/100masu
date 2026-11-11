@@ -87,7 +87,7 @@ namespace Masu.UI
         {
             if (label == null) return;
             label.color = RankingScreenTextColor;
-            ApplyBlackOutline(label, 2f);
+            ApplyBlackOutline(label, 1.5f);
             MasuFonts.ApplyRankingMincho(label, fontSize, bold);
         }
 
@@ -95,7 +95,7 @@ namespace Masu.UI
         {
             if (label == null) return;
             label.color = RankingScreenTextColor;
-            ApplyBlackOutline(label, 2f);
+            ApplyBlackOutline(label, 1.5f);
             MasuFonts.ApplyRankingLatin(label, fontSize, bold);
         }
 
@@ -277,7 +277,7 @@ namespace Masu.UI
             PlaceTopLeft(labelGo.rectTransform, pad, topY, 220, 28);
             stars = CreateText(parent, name + "Stars", "", MasuScoreSidebarLayout.StarFontSize,
                 RankingScreenTextColor, TextAnchor.UpperRight);
-            ApplyRankingScreenLatin(stars, MasuScoreSidebarLayout.StarFontSize);
+            ApplyRankingScreenJapanese(stars, MasuScoreSidebarLayout.StarFontSize);
             PlaceTopRight(stars.rectTransform, -pad, topY - 30, 220, 28);
             return stars;
         }

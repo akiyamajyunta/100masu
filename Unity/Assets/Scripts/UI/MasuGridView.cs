@@ -193,8 +193,8 @@ namespace Masu.UI
                 total = Mathf.Min(w, h);
             var fit = (total - (n - 1) * spacing) / n;
             _cellSize = Mathf.Clamp(fit, 8f, 256f);
-            _headerFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.4f));
-            _cellFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.36f));
+            _headerFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.38f));
+            _cellFontSize = Mathf.Max(8, Mathf.RoundToInt(_cellSize * 0.46f));
             _markFontSize = Mathf.Max(10, Mathf.RoundToInt(_cellSize * 0.5f));
         }
 
@@ -233,12 +233,15 @@ namespace Masu.UI
             var label = MasuUiFactory.CreateText(go.transform, "Label", initial, labelSize,
                 MasuTheme.GridCellText, TextAnchor.MiddleCenter);
             MasuFonts.ApplyGridCell(label, labelSize);
+            label.gameObject.AddComponent<MasuCenterGlyph>();
+            if (isHeader && initial == "＋")
+                MasuFonts.ApplyMincho(label, labelSize);
             MasuUiFactory.Stretch(label.rectTransform, 2, 2, 2, 2);
 
             var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", _markFontSize, MasuTheme.CorrectMark,
                 TextAnchor.MiddleCenter);
             mark.alignByGeometry = true;
-            MasuFonts.Apply(mark, _markFontSize);
+            MasuFonts.ApplyMincho(mark, _markFontSize);
             mark.font.RequestCharactersInTexture("○×", _markFontSize, mark.fontStyle);
             mark.gameObject.AddComponent<MasuCenterGlyph>();
             PlaceMarkOnCell(mark.rectTransform);
@@ -394,11 +397,10 @@ namespace Masu.UI
         private void ShowGradeMark(CellWidgets w, bool markOk)
         {
             var symbol = markOk ? "○" : "×";
-            var size = Mathf.Max(_markFontSize, Mathf.RoundToInt(_cellSize * 0.78f));
+            var size = Mathf.Max(_markFontSize, Mathf.RoundToInt(_cellSize * 0.62f));
             w.Mark.text = symbol;
             w.Mark.fontSize = size;
-            MasuFonts.Apply(w.Mark, size);
-            w.Mark.fontStyle = FontStyle.Bold;
+            MasuFonts.ApplyMincho(w.Mark, size, bold: true);
             w.Mark.alignment = TextAnchor.MiddleCenter;
             w.Mark.alignByGeometry = true;
             w.Mark.font.RequestCharactersInTexture(symbol, size, FontStyle.Bold);

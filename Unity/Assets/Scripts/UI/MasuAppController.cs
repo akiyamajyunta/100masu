@@ -141,6 +141,7 @@ namespace Masu.UI
         private Text _rankingGridArrowUp;
         private Text _rankingGridArrowDown;
         private Text[] _rankingRows;
+        private Text[] _rankingFigureRows;
         private Text[] _rankingGridSelectLabels;
         private Text _sidebarMode;
         private Text _sidebarGrid;
@@ -157,11 +158,13 @@ namespace Masu.UI
         private Text _resultSummary;
         private Text[] _resultMenuLabels;
         private Text[] _resultPreviewRows;
+        private Text[] _resultPreviewFigures;
         private Text _resultConfirmOp;
         private Text _resultConfirmGrid;
         private Text _resultConfirmHint;
         private Text _resultSessionSummary;
         private Text _resultEntryLine;
+        private Text _resultEntryFigures;
         private Text[][] _keyboardKeyLabels;
         private MasuNameKeyboard _nameKeyboard = new();
         private bool _recordConfirmEnterOpensKeyboard = true;
@@ -450,11 +453,12 @@ namespace Masu.UI
         {
             var go = MasuUiFactory.CreatePanel(canvas, "FadeOverlay", new Color(0f, 0f, 0f, 0f));
             _fadeImage = go.GetComponent<Image>();
-            _fadeCaption = MasuUiFactory.CreateText(go.transform, "Caption", "", 30, MasuTheme.TextDim);
+            _fadeCaption = MasuUiFactory.CreateText(go.transform, "Caption", "", 36, MasuTheme.TextDim);
+            MasuFonts.ApplyMincho(_fadeCaption, 36);
             _fadeCaption.rectTransform.anchorMin = _fadeCaption.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _fadeCaption.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             _fadeCaption.rectTransform.anchoredPosition = Vector2.zero;
-            _fadeCaption.rectTransform.sizeDelta = new Vector2(900, 48);
+            _fadeCaption.rectTransform.sizeDelta = new Vector2(900, 56);
             MasuUiAnimations.SetAlpha(_fadeCaption, 0f);
         }
 
@@ -516,6 +520,9 @@ namespace Masu.UI
                 "【 リザルト 】\n" +
                 "記録確認画面 … Shift で3択メニューへ戻る",
                 20, MasuTheme.Text, TextAnchor.UpperLeft);
+            helpText.fontSize = 22;
+            helpText.lineSpacing = 1.15f;
+            MasuFonts.ApplyMincho(helpText, 22);
             MasuUiFactory.Stretch(helpText.rectTransform, 48, 48, 48, 48);
             _menuPanels[AppScreen.Help] = helpPanel;
 
@@ -702,7 +709,9 @@ namespace Masu.UI
             rt.sizeDelta = new Vector2(480, 220);
             rt.anchoredPosition = Vector2.zero;
 
-            var caption = MasuUiFactory.CreateText(box.transform, "Caption", "一時停止", 32, MasuTheme.CursorGold);
+            var caption = MasuUiFactory.CreateText(box.transform, "Caption", "一時停止", 36, MasuTheme.CursorGold);
+            MasuFonts.ApplyMincho(caption, 36);
+            MasuUiFactory.ApplyBlackOutline(caption, 1.5f);
             caption.rectTransform.anchorMin = caption.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             caption.rectTransform.anchoredPosition = new Vector2(0, 72);
             caption.rectTransform.sizeDelta = new Vector2(400, 48);
@@ -711,8 +720,10 @@ namespace Masu.UI
             for (var i = 0; i < PauseMenuItems.Length; i++)
             {
                 _pauseLabels[i] = MasuUiFactory.CreateText(box.transform, $"Pause{i}", PauseMenuItems[i], 28, MasuTheme.Text);
+                MasuFonts.ApplyMincho(_pauseLabels[i], 28);
+                MasuUiFactory.ApplyBlackOutline(_pauseLabels[i], 1.5f);
                 _pauseLabels[i].rectTransform.anchorMin = _pauseLabels[i].rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                _pauseLabels[i].rectTransform.anchoredPosition = new Vector2(0, 10 - i * 48);
+                _pauseLabels[i].rectTransform.anchoredPosition = new Vector2(0, 8 - i * 48);
                 _pauseLabels[i].rectTransform.sizeDelta = new Vector2(420, 40);
             }
         }
@@ -852,7 +863,7 @@ namespace Masu.UI
 
         private static void StyleRankingGridLine(Text label)
         {
-            StyleRankingLatin(label, MasuRankingLayout.GridSizeFontSize);
+            StyleRankingJapanese(label, MasuRankingLayout.GridSizeFontSize);
         }
 
         private static string FormatRankingGridLine(int playSize, GamePlayMode mode) =>
@@ -933,14 +944,14 @@ namespace Masu.UI
             CacheLabelBasePositions(_rankingGridSelectLabels);
 
             _rankingRows = new Text[10];
+            _rankingFigureRows = new Text[10];
             for (var i = 0; i < 10; i++)
             {
-                _rankingRows[i] = MasuUiFactory.CreateText(rankPanel.transform, $"RankRow{i}", "-",
-                    MasuRankingLayout.RowFontSize, RankingTextWhite, TextAnchor.MiddleCenter);
-                StyleRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
-                MasuUiFactory.PlaceTopCenter(_rankingRows[i].rectTransform,
+                CreateRankingLine(rankPanel.transform, $"RankRow{i}",
                     MasuRankingLayout.RowStartYClamped - i * MasuRankingLayout.RowLineHeight,
-                    MasuRankingLayout.RowWidth, MasuRankingLayout.RankingRowHeight);
+                    MasuRankingLayout.RowWidth, MasuRankingLayout.RankingRowHeight,
+                    MasuRankingLayout.RowFontSize,
+                    out _rankingRows[i], out _rankingFigureRows[i]);
             }
 
             var hint = MasuUiFactory.CreateText(rankPanel.transform, "RankHint", "↑↓ マス目　←→ 演算　Esc タイトルへ",
@@ -951,6 +962,35 @@ namespace Masu.UI
             hintRt.pivot = new Vector2(0.5f, 0f);
             hintRt.anchoredPosition = new Vector2(0, MasuRankingLayout.HintBottomInset);
             hintRt.sizeDelta = new Vector2(920, MasuRankingLayout.HintHeight);
+        }
+
+        private static void CreateRankingLine(
+            Transform parent,
+            string name,
+            float topY,
+            float width,
+            float height,
+            int fontSize,
+            out Text nameText,
+            out Text figureText)
+        {
+            var rowGo = new GameObject(name, typeof(RectTransform));
+            rowGo.transform.SetParent(parent, false);
+            MasuUiFactory.PlaceTopCenter(rowGo.GetComponent<RectTransform>(), topY, width, height);
+
+            nameText = MasuUiFactory.CreateText(rowGo.transform, "Name", "", fontSize, RankingTextWhite,
+                TextAnchor.MiddleLeft);
+            MasuUiFactory.Stretch(nameText.rectTransform, 8f, 0f, width * 0.64f, 0f);
+            StyleRankingJapanese(nameText, fontSize);
+
+            figureText = MasuUiFactory.CreateText(rowGo.transform, "Figures", "", fontSize, RankingTextWhite,
+                TextAnchor.MiddleRight);
+            var fig = figureText.rectTransform;
+            fig.anchorMin = new Vector2(0.36f, 0f);
+            fig.anchorMax = Vector2.one;
+            fig.offsetMin = new Vector2(8f, 0f);
+            fig.offsetMax = new Vector2(-8f, 0f);
+            StyleRankingLatin(figureText, fontSize);
         }
 
         private void BuildGameBackdrop()
@@ -1193,18 +1233,17 @@ namespace Masu.UI
             if (_dopamineScreenFx != null)
                 _gridView.SetScreenFx(_dopamineScreenFx);
 
-            _guideText = MasuUiFactory.CreateText(playInner, "Guide", "", 16, MasuTheme.TextDim, TextAnchor.LowerCenter);
+            _guideText = MasuUiFactory.CreateText(playInner, "Guide", "", 22, MasuTheme.TextDim, TextAnchor.LowerCenter);
+            MasuFonts.ApplyMincho(_guideText, 22);
+            _guideText.lineSpacing = 1.15f;
             _guideText.rectTransform.anchorMin = new Vector2(0.5f, 0f);
             _guideText.rectTransform.anchorMax = new Vector2(0.5f, 0f);
             _guideText.rectTransform.pivot = new Vector2(0.5f, 0f);
-            _guideText.rectTransform.anchoredPosition = new Vector2(0, 12);
-            _guideText.rectTransform.sizeDelta = new Vector2(640, 48);
+            _guideText.rectTransform.anchoredPosition = new Vector2(0, 40);
+            _guideText.rectTransform.sizeDelta = new Vector2(720, 64);
 
-            // READY / GO! の合図（盤面中央にポップ表示。普段は非表示）
-            _readyGoLabel = MasuUiFactory.CreateText(playInner, "ReadyGo", "", 72, MasuTheme.CursorGold);
-            _readyGoLabel.fontStyle = FontStyle.Bold;
-            MasuFonts.Apply(_readyGoLabel, 72);
-            MasuUiFactory.ApplyBlackOutline(_readyGoLabel, 2f);
+            _readyGoLabel = MasuUiFactory.CreateText(playInner, "ReadyGo", "", 64, MasuTheme.CursorGold);
+            MasuFonts.ApplyRankingLatin(_readyGoLabel, 64, bold: true);
             var readyRt = _readyGoLabel.rectTransform;
             readyRt.anchorMin = readyRt.anchorMax = new Vector2(0.5f, 0.5f);
             readyRt.pivot = new Vector2(0.5f, 0.5f);
@@ -1234,8 +1273,8 @@ namespace Masu.UI
 
             _sidebarMode = MasuUiFactory.CreateText(scoreInner, "Mode", "", MasuScoreSidebarLayout.ModeFontSize,
                 MasuTheme.CursorGold, TextAnchor.UpperCenter);
-            _sidebarMode.fontStyle = FontStyle.Bold;
-            MasuFonts.Apply(_sidebarMode, MasuScoreSidebarLayout.ModeFontSize);
+            MasuFonts.ApplyMincho(_sidebarMode, MasuScoreSidebarLayout.ModeFontSize);
+            MasuUiFactory.ApplyBlackOutline(_sidebarMode, 1.5f);
             MasuUiFactory.PlaceTopCenter(_sidebarMode.rectTransform, -12f, 230f, 48f);
 
             _sidebarGrid = MasuUiFactory.CreateText(scoreInner, "GridSize", "", MasuScoreSidebarLayout.GridFontSize,
@@ -1290,65 +1329,87 @@ namespace Masu.UI
                 _resultContentPanel.transform, "MenuBox", Color.clear,
                 new Vector2(720, 400), Vector2.zero);
 
-            _resultTitle = MasuUiFactory.CreateText(_resultMenuBox.transform, "Title", "", 36,
+            _resultTitle = MasuUiFactory.CreateText(_resultMenuBox.transform, "Title", "", 44,
                 MasuTheme.CursorGold);
+            MasuFonts.ApplyMincho(_resultTitle, 44);
+            MasuUiFactory.ApplyBlackOutline(_resultTitle, 1.5f);
             _resultTitle.rectTransform.anchoredPosition = new Vector2(0, 200);
+            _resultTitle.rectTransform.sizeDelta = new Vector2(660, 56);
             _resultSummary = MasuUiFactory.CreateText(_resultMenuBox.transform, "Summary", "", 22,
                 MasuTheme.Text);
-            _resultSummary.rectTransform.sizeDelta = new Vector2(660, 72);
-            _resultSummary.rectTransform.anchoredPosition = new Vector2(0, 150);
+            MasuFonts.ApplyMincho(_resultSummary, 22);
+            _resultSummary.lineSpacing = 1.15f;
+            MasuUiFactory.ApplyBlackOutline(_resultSummary, 1.5f);
+            _resultSummary.rectTransform.sizeDelta = new Vector2(660, 80);
+            _resultSummary.rectTransform.anchoredPosition = new Vector2(0, 140);
 
             _resultMenuPanel = MasuUiFactory.CreatePanel(_resultMenuBox.transform, "MenuPanel", Color.clear);
             MasuUiFactory.Stretch(_resultMenuPanel.GetComponent<RectTransform>());
             _resultMenuLabels = BuildMenuList(_resultMenuPanel.transform, "ResultItems", ResultMenuItems, out _,
-                startY: 20f, rowStep: 44f, panelBackground: Color.clear);
+                startY: 8f, rowStep: 56f, panelBackground: Color.clear);
+            for (var i = 0; i < _resultMenuLabels.Length; i++)
+            {
+                _resultMenuLabels[i].fontSize = 36;
+                MasuFonts.ApplyMincho(_resultMenuLabels[i], 36);
+                MasuUiFactory.ApplyBlackOutline(_resultMenuLabels[i], 1.5f);
+                _resultMenuLabels[i].rectTransform.sizeDelta = new Vector2(640, 48);
+            }
 
             _resultConfirmPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "ConfirmPanel", Color.clear);
             MasuUiFactory.Stretch(_resultConfirmPanel.GetComponent<RectTransform>());
 
-            _resultConfirmOp = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Op", "", 34,
+            _resultConfirmOp = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Op", "", 36,
                 MasuTheme.CursorGold, TextAnchor.UpperCenter);
-            MasuUiFactory.PlaceTopCenter(_resultConfirmOp.rectTransform, -48f, 400f, 40f);
+            MasuFonts.ApplyMincho(_resultConfirmOp, 36);
+            MasuUiFactory.ApplyBlackOutline(_resultConfirmOp, 1.5f);
+            MasuUiFactory.PlaceTopCenter(_resultConfirmOp.rectTransform, -48f, 400f, 44f);
 
             _resultConfirmGrid = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "Grid", "4×4", 28,
                 MasuTheme.Text, TextAnchor.UpperCenter);
-            MasuUiFactory.PlaceTopCenter(_resultConfirmGrid.rectTransform, -88f, 200f, 36f);
+            MasuFonts.ApplyMincho(_resultConfirmGrid, 28);
+            MasuUiFactory.ApplyBlackOutline(_resultConfirmGrid, 1.5f);
+            MasuUiFactory.PlaceTopCenter(_resultConfirmGrid.rectTransform, -96f, 420f, 36f);
 
             _resultPreviewRows = new Text[10];
+            _resultPreviewFigures = new Text[10];
             for (var i = 0; i < 10; i++)
             {
-                _resultPreviewRows[i] = MasuUiFactory.CreateText(_resultConfirmPanel.transform, $"Prev{i}", "-",
-                    MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.MiddleCenter);
-                MasuUiFactory.PlaceTopCenter(_resultPreviewRows[i].rectTransform,
+                CreateRankingLine(_resultConfirmPanel.transform, $"Prev{i}",
                     MasuRankingLayout.RowStartY - i * MasuRankingLayout.RowLineHeight,
-                    MasuRankingLayout.RowWidth, 36f);
+                    MasuRankingLayout.RowWidth, 36f,
+                    MasuRankingLayout.ConfirmFigureFontSize,
+                    out _resultPreviewRows[i], out _resultPreviewFigures[i]);
             }
 
             _resultSessionSummary = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "SessionSummary", "",
-                MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.LowerCenter);
+                MasuRankingLayout.ConfirmFigureFontSize, MasuTheme.Text, TextAnchor.LowerCenter);
+            MasuFonts.ApplyRankingLatin(_resultSessionSummary, MasuRankingLayout.ConfirmFigureFontSize);
             var sumRt = _resultSessionSummary.rectTransform;
             sumRt.anchorMin = sumRt.anchorMax = new Vector2(0.5f, 0f);
             sumRt.pivot = new Vector2(0.5f, 0f);
-            sumRt.anchoredPosition = new Vector2(0, 48);
-            sumRt.sizeDelta = new Vector2(MasuRankingLayout.RowWidth, 40);
+            sumRt.anchoredPosition = new Vector2(0, 72);
+            sumRt.sizeDelta = new Vector2(MasuRankingLayout.RowWidth, 36);
 
             _resultConfirmHint = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "ConfirmHint",
                 "Shift … 3択メニューに戻る", MasuRankingLayout.HintFontSize, MasuTheme.TextDim,
                 TextAnchor.LowerCenter);
+            MasuFonts.ApplyMincho(_resultConfirmHint, MasuRankingLayout.HintFontSize);
+            _resultConfirmHint.color = MasuTheme.TextDim;
             var hintRt = _resultConfirmHint.rectTransform;
             hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
             hintRt.pivot = new Vector2(0.5f, 0f);
-            hintRt.anchoredPosition = new Vector2(0, 16);
+            hintRt.anchoredPosition = new Vector2(0, 40);
             hintRt.sizeDelta = new Vector2(900, 28);
 
             _resultEntryPanel = MasuUiFactory.CreatePanel(_resultContentPanel.transform, "EntryPanel", Color.clear);
             MasuUiFactory.Stretch(_resultEntryPanel.GetComponent<RectTransform>());
 
-            _resultEntryLine = MasuUiFactory.CreateText(_resultEntryPanel.transform, "EntryLine", "",
-                MasuRankingLayout.RowFontSize, MasuTheme.Text, TextAnchor.UpperCenter);
-            MasuUiFactory.PlaceTopCenter(_resultEntryLine.rectTransform, -40f, MasuRankingLayout.RowWidth, 40f);
-            MasuFonts.ApplyKeyboard(_resultEntryLine, MasuRankingLayout.RowFontSize);
-            MasuUiFactory.ApplyBlackOutline(_resultEntryLine, 1.4f);
+            var entryRow = new GameObject("EntryLine", typeof(RectTransform));
+            entryRow.transform.SetParent(_resultEntryPanel.transform, false);
+            MasuUiFactory.PlaceTopCenter(entryRow.GetComponent<RectTransform>(), -40f,
+                MasuRankingLayout.RowWidth, 40f);
+            CreateRankingLine(entryRow.transform, "Parts", 0f, MasuRankingLayout.RowWidth, 40f,
+                MasuRankingLayout.RowFontSize, out _resultEntryLine, out _resultEntryFigures);
 
             // キーボードだけを下からスライドさせるため、専用のルートにぶら下げる
             var keyboardRootGo = MasuUiFactory.CreatePanel(_resultEntryPanel.transform, "KeyboardRoot", Color.clear);
@@ -1372,12 +1433,14 @@ namespace Masu.UI
                 {
                     var label = MasuUiFactory.CreateText(parent, $"Key_{r}_{c}", line[c],
                         (int)MasuNameKeyboardLayout.KeyFontSize, MasuTheme.Text);
-                    MasuFonts.ApplyKeyboard(label, (int)MasuNameKeyboardLayout.KeyFontSize);
-                    MasuUiFactory.ApplyBlackOutline(label);
+                    var keySize = (int)MasuNameKeyboardLayout.KeyFontSize;
+                    if (line[c] == MasuNameKeyboard.KeyBack || line[c] == MasuNameKeyboard.KeyEnd)
+                        MasuFonts.ApplyMincho(label, keySize);
+                    else
+                        MasuFonts.ApplyKeyboard(label, keySize);
+                    MasuUiFactory.ApplyBlackOutline(label, 1.5f);
                     label.alignment = TextAnchor.MiddleCenter;
-                    label.resizeTextForBestFit = true;
-                    label.resizeTextMinSize = 14;
-                    label.resizeTextMaxSize = (int)MasuNameKeyboardLayout.KeyFontSize;
+                    label.resizeTextForBestFit = false;
                     var rt = label.rectTransform;
                     rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
                     rt.pivot = new Vector2(0.5f, 0.5f);
@@ -1397,20 +1460,26 @@ namespace Masu.UI
             rt.sizeDelta = new Vector2(520, 240);
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
 
-            var msg = MasuUiFactory.CreateText(panel.transform, "Msg", "終了して採点しますか？", 26, MasuTheme.Text);
+            var msg = MasuUiFactory.CreateText(panel.transform, "Msg", "終了して採点しますか？", 28, MasuTheme.Text);
+            MasuFonts.ApplyMincho(msg, 28);
+            MasuUiFactory.ApplyBlackOutline(msg, 1.5f);
             msg.rectTransform.anchorMin = msg.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            msg.rectTransform.anchoredPosition = new Vector2(0, 56);
+            msg.rectTransform.anchoredPosition = new Vector2(0, 64);
             msg.rectTransform.sizeDelta = new Vector2(480, 40);
 
-            _endConfirmYes = MasuUiFactory.CreateText(panel.transform, "Yes", "はい", 24, MasuTheme.Text);
+            _endConfirmYes = MasuUiFactory.CreateText(panel.transform, "Yes", "はい", 28, MasuTheme.Text);
+            MasuFonts.ApplyMincho(_endConfirmYes, 28);
+            MasuUiFactory.ApplyBlackOutline(_endConfirmYes, 1.5f);
             _endConfirmYes.rectTransform.anchorMin = _endConfirmYes.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _endConfirmYes.rectTransform.anchoredPosition = new Vector2(0, -8);
-            _endConfirmYes.rectTransform.sizeDelta = new Vector2(320, 36);
+            _endConfirmYes.rectTransform.anchoredPosition = new Vector2(0, 4);
+            _endConfirmYes.rectTransform.sizeDelta = new Vector2(320, 40);
 
-            _endConfirmNo = MasuUiFactory.CreateText(panel.transform, "No", "いいえ", 24, MasuTheme.Text);
+            _endConfirmNo = MasuUiFactory.CreateText(panel.transform, "No", "いいえ", 28, MasuTheme.Text);
+            MasuFonts.ApplyMincho(_endConfirmNo, 28);
+            MasuUiFactory.ApplyBlackOutline(_endConfirmNo, 1.5f);
             _endConfirmNo.rectTransform.anchorMin = _endConfirmNo.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _endConfirmNo.rectTransform.anchoredPosition = new Vector2(0, -52);
-            _endConfirmNo.rectTransform.sizeDelta = new Vector2(320, 36);
+            _endConfirmNo.rectTransform.anchoredPosition = new Vector2(0, -44);
+            _endConfirmNo.rectTransform.sizeDelta = new Vector2(320, 40);
             _endConfirmLabels = new[] { _endConfirmYes, _endConfirmNo };
         }
 
@@ -1681,7 +1750,9 @@ namespace Masu.UI
             if (_rankingRows != null)
             {
                 foreach (var row in _rankingRows)
-                    if (row != null) targets.Add(row.rectTransform);
+                    if (row != null && row.rectTransform.parent is RectTransform rowRoot
+                        && rowRoot.name.StartsWith("RankRow"))
+                        targets.Add(rowRoot);
             }
         }
 
@@ -1850,6 +1921,7 @@ namespace Masu.UI
         {
             if (menu == null) return;
             MasuMenuSfx.PlayCursor();
+            menu.SetSelected(index);
             if (_forestHighlightRoutine != null)
                 StopCoroutine(_forestHighlightRoutine);
             _forestHighlightRoutine = StartCoroutine(AnimateForestHighlight(menu, index));
@@ -1963,8 +2035,10 @@ namespace Masu.UI
             var entries = Leaderboard.Padded(_store.GetLeaderboard(op, board.PlaySize, board.Mode));
             for (var i = 0; i < _rankingRows.Length; i++)
             {
-                _rankingRows[i].text = Leaderboard.FormatRankingRow(i + 1, entries[i]);
-                MasuFonts.ApplyRankingLatin(_rankingRows[i], MasuRankingLayout.RowFontSize);
+                _rankingRows[i].text = Leaderboard.FormatRankAndName(i + 1, entries[i]);
+                _rankingFigureRows[i].text = Leaderboard.FormatRankingFigures(entries[i]);
+                StyleRankingJapanese(_rankingRows[i], MasuRankingLayout.RowFontSize);
+                StyleRankingLatin(_rankingFigureRows[i], MasuRankingLayout.RowFontSize);
             }
         }
 
@@ -1978,6 +2052,7 @@ namespace Masu.UI
             for (var i = 0; i < _titleLabels.Length; i++)
             {
                 _titleLabels[i].text = TitleMenuItems[i];
+                MasuFonts.ApplyMincho(_titleLabels[i], TitleMenuFontSize, bold: i == _titleMenu);
                 if (i == _titleMenu) continue;
                 RestoreLabelPose(_titleLabels[i]);
                 _titleLabels[i].color = TitleMenuTextIdle;
@@ -2037,12 +2112,7 @@ namespace Masu.UI
         /// リストのハイライト更新。カーソルが動いた（または ForgetListCursor 済み）ときだけ
         /// 選択項目を横からスライドイン＋点滅させる。
         /// </summary>
-        private void HighlightList(
-            Text[] labels,
-            int cursor,
-            string[] items,
-            string unselectedPrefix = "  ",
-            string selectedPrefix = "▶ ")
+        private void HighlightList(Text[] labels, int cursor, string[] items)
         {
             if (labels == null || labels.Length == 0) return;
             var changed = !_listCursorMemo.TryGetValue(labels, out var prev) || prev != cursor;
@@ -2051,7 +2121,8 @@ namespace Masu.UI
             for (var i = 0; i < labels.Length; i++)
             {
                 var sel = i == cursor;
-                labels[i].text = (sel ? selectedPrefix : unselectedPrefix) + items[i];
+                labels[i].text = items[i];
+                MasuFonts.ApplyMincho(labels[i], labels[i].fontSize, bold: sel);
                 if (!sel)
                 {
                     RestoreLabelPose(labels[i]);
@@ -2665,8 +2736,14 @@ namespace Masu.UI
             var padded = Leaderboard.Padded(entries);
             for (var i = 0; i < 10; i++)
             {
-                _resultPreviewRows[i].text = Leaderboard.FormatRankingRow(i + 1, padded[i]);
-                _resultPreviewRows[i].color = i + 1 == rank ? MasuTheme.CursorGold : MasuTheme.Text;
+                var mine = i + 1 == rank;
+                _resultPreviewRows[i].text = Leaderboard.FormatRankAndName(i + 1, padded[i]);
+                _resultPreviewFigures[i].text = Leaderboard.FormatRankingFigures(padded[i]);
+                StyleRankingJapanese(_resultPreviewRows[i], MasuRankingLayout.ConfirmFigureFontSize);
+                StyleRankingLatin(_resultPreviewFigures[i], MasuRankingLayout.ConfirmFigureFontSize);
+                var color = mine ? MasuTheme.CursorGold : MasuTheme.Text;
+                _resultPreviewRows[i].color = color;
+                _resultPreviewFigures[i].color = color;
             }
 
             var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
@@ -2678,9 +2755,12 @@ namespace Masu.UI
         {
             var played = string.IsNullOrEmpty(_lastPlayedAt) ? "----/--/-- --:--" : _lastPlayedAt;
             _resultEntryLine.text =
-                $"{Leaderboard.FormatRankPrefix(_entryPreviewRank)}{MasuNameKeyboard.FormatNameSlots(_entryName, Leaderboard.NameDisplayMax)}  " +
-                $"{GameLogic.FormatTime(_lastElapsedSeconds)}  {Leaderboard.FormatPlayedDate(_lastPlayedAt)}  " +
+                $"{Leaderboard.FormatRankPrefix(_entryPreviewRank)}{MasuNameKeyboard.FormatNameSlots(_entryName, Leaderboard.NameDisplayMax)}";
+            _resultEntryFigures.text =
+                $"{GameLogic.FormatTime(_lastElapsedSeconds)}  {Leaderboard.FormatPlayedDate(played)}  " +
                 $"{Leaderboard.FormatAccuracy(_lastAccuracy)}";
+            StyleRankingJapanese(_resultEntryLine, MasuRankingLayout.RowFontSize);
+            StyleRankingLatin(_resultEntryFigures, MasuRankingLayout.RowFontSize);
             RefreshKeyboardHighlight();
         }
 

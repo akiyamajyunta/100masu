@@ -23,12 +23,12 @@ namespace Masu.UI
         public const float ContentBlockUpOffset = 52f;
         public const float ContentBlockCenterWeight = 0.36f;
 
-        public const int SelectedNameFontSize = 44;
+        public const int SelectedNameFontSize = 48;
         public const float CardBlackBorderPx = 3f;
         public const float CardWhiteBorderPx = 3f;
         public const float CardSelectionRingOutsetPx = 3f;
         public const float BackHintBottom = 40f;
-        public const int BackHintFontSize = 24;
+        public const int BackHintFontSize = 22;
 
         public static float ThemeNameBannerHeight(float width)
         {

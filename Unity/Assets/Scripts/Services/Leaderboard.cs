@@ -67,15 +67,21 @@ namespace Masu.Services
 
         public static string FormatRankPrefix(int rank) => $"No{rank}.";
 
-        public static string FormatRankingRow(int rank, LeaderboardEntry e)
+        public static string FormatRankAndName(int rank, LeaderboardEntry e)
         {
-            var rankLabel = FormatRankPrefix(rank);
-            if (IsPlaceholder(e))
-                return $"{rankLabel}-  -:--.--  ----/--/--  0.0";
-            var name = DisplayName(e.Name);
-            return
-                $"{rankLabel}{name}  {FormatElapsedForRow(e)}  {FormatPlayedDate(e.PlayedAt)}  {FormatAccuracy(e.Accuracy)}";
+            var name = IsPlaceholder(e) ? PlaceholderName : DisplayName(e.Name);
+            return $"{FormatRankPrefix(rank)}{name}";
         }
+
+        public static string FormatRankingFigures(LeaderboardEntry e)
+        {
+            if (IsPlaceholder(e))
+                return "-:--.--  ----/--/--  0.0";
+            return $"{FormatElapsedForRow(e)}  {FormatPlayedDate(e.PlayedAt)}  {FormatAccuracy(e.Accuracy)}";
+        }
+
+        public static string FormatRankingRow(int rank, LeaderboardEntry e) =>
+            $"{FormatRankAndName(rank, e)}  {FormatRankingFigures(e)}";
 
         public static List<LeaderboardEntry> Padded(List<LeaderboardEntry> entries)
         {
