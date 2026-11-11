@@ -2340,9 +2340,15 @@ namespace Masu.UI
                     {
                         _gridView.PlayDopamineHeaderSlam(r, c, IntroHeaderEnterSec * 1.15f);
                         _dopamineScreenFx?.Shake(0.12f, 8f);
+                        if (_playMode != GamePlayMode.Quick)
+                            MasuMenuSfx.PlayDopamineHit();
                     }
                     else
+                    {
                         _gridView.PlayHeaderEnter(r, c, IntroHeaderEnterSec);
+                        if (_playMode != GamePlayMode.Quick)
+                            MasuMenuSfx.PlayNormalCellPop();
+                    }
                     yield return new WaitForSecondsRealtime(stagger);
                 }
 
@@ -2573,6 +2579,8 @@ namespace Masu.UI
                 var ok = _state.GradeCellAtScore(r, c);
                 _scoreMarks[(r, c)] = ok;
                 _gridView.PlayGradeStamp(r, c, ok, stampSec);
+                MasuMenuSfx.PlayNormalCellPop();
+                MasuMenuSfx.PlayDopamineHit();
                 UpdateSidebar();
                 yield return new WaitForSecondsRealtime(perCell);
             }
