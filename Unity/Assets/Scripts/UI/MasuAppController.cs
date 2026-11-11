@@ -518,7 +518,7 @@ namespace Masu.UI
                 "Esc … タイトル（マス目→演算→クラシック/クイック→タイトル）\n" +
                 "操作説明 … Enter または Esc でタイトルへ\n\n" +
                 "【 リザルト 】\n" +
-                "記録確認画面 … Shift で3択メニューへ戻る",
+                "記録確認画面 … Shift でメニューへ戻る",
                 20, MasuTheme.Text, TextAnchor.UpperLeft);
             helpText.fontSize = 22;
             helpText.lineSpacing = 1.15f;
@@ -1318,7 +1318,7 @@ namespace Masu.UI
         }
 
         private static readonly string[] ResultMenuItems =
-            { "タイトルに戻る", "記録する", "ゲームを終了する" };
+            { "もう一度", "タイトルに戻る", "記録する", "ゲームを終了する" };
 
         private void BuildResultOverlay()
         {
@@ -1346,7 +1346,7 @@ namespace Masu.UI
             _resultMenuPanel = MasuUiFactory.CreatePanel(_resultMenuBox.transform, "MenuPanel", Color.clear);
             MasuUiFactory.Stretch(_resultMenuPanel.GetComponent<RectTransform>());
             _resultMenuLabels = BuildMenuList(_resultMenuPanel.transform, "ResultItems", ResultMenuItems, out _,
-                startY: 8f, rowStep: 56f, panelBackground: Color.clear);
+                startY: 36f, rowStep: 56f, panelBackground: Color.clear);
             for (var i = 0; i < _resultMenuLabels.Length; i++)
             {
                 _resultMenuLabels[i].fontSize = 36;
@@ -1391,7 +1391,7 @@ namespace Masu.UI
             sumRt.sizeDelta = new Vector2(MasuRankingLayout.RowWidth, 36);
 
             _resultConfirmHint = MasuUiFactory.CreateText(_resultConfirmPanel.transform, "ConfirmHint",
-                "Shift … 3択メニューに戻る", MasuRankingLayout.HintFontSize, MasuTheme.TextDim,
+                "Shift … メニューに戻る", MasuRankingLayout.HintFontSize, MasuTheme.TextDim,
                 TextAnchor.LowerCenter);
             MasuFonts.ApplyMincho(_resultConfirmHint, MasuRankingLayout.HintFontSize);
             _resultConfirmHint.color = MasuTheme.TextDim;
@@ -2265,6 +2265,8 @@ namespace Masu.UI
             _operation = op;
             _gridSize = board.PlaySize;
             _playMode = board.Mode;
+            if (_resultRoot != null)
+                _resultRoot.gameObject.SetActive(false);
             _state.Grid.Configure(board.PlaySize);
             _state.Operation = op;
             _state.PlayMode = board.Mode;
@@ -2656,7 +2658,7 @@ namespace Masu.UI
             ForgetListCursor(_resultMenuLabels);
         }
 
-        /// <summary>3択メニューへ戻る（選択項目をスライドインさせる）。</summary>
+        /// <summary>結果メニューへ戻る（選択項目をスライドインさせる）。</summary>
         private void ShowResultMenuView()
         {
             _resultView = ResultView.Menu;
@@ -2813,7 +2815,7 @@ namespace Masu.UI
                 return;
             }
 
-            // キーボードを下へ退場させてから 3択メニューへ
+            // キーボードを下へ退場させてから結果メニューへ
             _menuBusy = true;
             PlayKeyboardSlide(show: false, then: () =>
             {
@@ -3613,6 +3615,12 @@ namespace Masu.UI
             }
         }
 
+        /// <summary>いまの演算・マス目・モードのまま、新しい盤で始める。</summary>
+        private void ReplaySameBoard()
+        {
+            StartCoroutine(GameStartTransition(_operation, new PlayBoard(_gridSize, _playMode)));
+        }
+
         private void HandleResultInput()
         {
             if (_resultView == ResultView.Entry)
@@ -3691,8 +3699,9 @@ namespace Masu.UI
                 var choice = _resultMenu;
                 Decide(_resultMenuLabels[choice], () =>
                 {
-                    if (choice == 0) ReturnToTitle();
-                    else if (choice == 1) BeginScoreRecord();
+                    if (choice == 0) ReplaySameBoard();
+                    else if (choice == 1) ReturnToTitle();
+                    else if (choice == 2) BeginScoreRecord();
                     else QuitApplication();
                 });
             }

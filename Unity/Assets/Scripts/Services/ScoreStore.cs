@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Masu.Core;
@@ -13,6 +14,7 @@ namespace Masu.Services
     {
         public Dictionary<string, int> HighByDifficulty { get; } = new();
         public Dictionary<string, List<LeaderboardEntry>> Leaderboards { get; } = new();
+        public Dictionary<string, DailySheet> Daily { get; } = new();
 
         public static string ScoresPath
         {
@@ -95,6 +97,17 @@ namespace Masu.Services
                             if (entry != null) list.Add(entry);
                         }
                         store.Leaderboards[prop.Name] = list;
+                    }
+                }
+                if (root["daily"] is JObject daily)
+                {
+                    foreach (var prop in daily.Properties())
+                    {
+                        if (!DailySheet.TryParseKey(prop.Name, out _)) continue;
+                        if (prop.Value is not JObject day) continue;
+                        var sheet = ParseDailySheet(day);
+                        if (sheet != null)
+                            store.Daily[prop.Name] = sheet;
                     }
                 }
                 return true;
@@ -254,10 +267,18 @@ namespace Masu.Services
                 boardsObj[key] = arr;
             }
 
+            var dailyObj = new JObject();
+            foreach (var kv in Daily)
+            {
+                if (kv.Value == null || kv.Value.Plays <= 0) continue;
+                dailyObj[kv.Key] = WriteDailySheet(kv.Value);
+            }
+
             var payload = new JObject
             {
                 ["high_by_difficulty"] = highObj,
-                ["leaderboards"] = boardsObj
+                ["leaderboards"] = boardsObj,
+                ["daily"] = dailyObj
             };
             File.WriteAllText(ScoresPath, payload.ToString(Formatting.Indented));
             TryWriteBackup(ScoresPath);
@@ -278,6 +299,82 @@ namespace Masu.Services
             }
             return next;
         }
+
+        public DailySheet GetDaily(DateTime localDate)
+        {
+            var key = DailySheet.KeyFor(localDate.Date);
+            return Daily.TryGetValue(key, out var sheet) ? sheet : null;
+        }
+
+        /// <summary>採点完了のたびに、その日の回数と最高記録を残す。名前の記録とは別。</summary>
+        public void RecordDaily(Operation op, int gridSize, GamePlayMode mode, int score, double elapsed, float accuracy)
+        {
+            var now = DateTime.Now;
+            var key = DailySheet.KeyFor(now);
+            if (!Daily.TryGetValue(key, out var sheet) || sheet == null)
+            {
+                sheet = new DailySheet();
+                Daily[key] = sheet;
+            }
+            sheet.Record(op, gridSize, mode, score, elapsed, accuracy, now);
+            Save();
+        }
+
+        static DailySheet ParseDailySheet(JObject raw)
+        {
+            if (raw == null) return null;
+            var sheet = new DailySheet();
+            int.TryParse(raw["plays"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out sheet.Plays);
+            sheet.Plays = Math.Max(0, sheet.Plays);
+            sheet.Sample = raw["sample"]?.Value<bool>() ?? false;
+            sheet.BestScore = ParseDailyBest(raw["best_score"] as JObject);
+            sheet.BestTime = ParseDailyBest(raw["best_time"] as JObject);
+            if (sheet.Plays <= 0 && sheet.BestScore == null && sheet.BestTime == null) return null;
+            return sheet;
+        }
+
+        static DailyBest ParseDailyBest(JObject raw)
+        {
+            if (raw == null) return null;
+            if (!int.TryParse(raw["score"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var score))
+                return null;
+            double.TryParse(raw["elapsed_sec"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var elapsed);
+            float.TryParse(raw["accuracy"]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var acc);
+            int.TryParse(raw["grid"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var grid);
+            return new DailyBest
+            {
+                Score = Math.Max(0, score),
+                ElapsedSeconds = Math.Max(0, elapsed),
+                Accuracy = UnityEngine.Mathf.Clamp(acc, 0f, 100f),
+                OperationKey = raw["op"]?.ToString() ?? "add",
+                GridSize = grid,
+                ModeKey = raw["mode"]?.ToString() ?? "classic",
+                At = raw["at"]?.ToString() ?? ""
+            };
+        }
+
+        static JObject WriteDailySheet(DailySheet sheet)
+        {
+            var obj = new JObject
+            {
+                ["plays"] = sheet.Plays,
+                ["sample"] = sheet.Sample
+            };
+            if (sheet.BestScore != null) obj["best_score"] = WriteDailyBest(sheet.BestScore);
+            if (sheet.BestTime != null) obj["best_time"] = WriteDailyBest(sheet.BestTime);
+            return obj;
+        }
+
+        static JObject WriteDailyBest(DailyBest best) => new()
+        {
+            ["score"] = best.Score,
+            ["elapsed_sec"] = Math.Round(best.ElapsedSeconds, 2),
+            ["accuracy"] = Math.Round(best.Accuracy, 1),
+            ["op"] = best.OperationKey,
+            ["grid"] = best.GridSize,
+            ["mode"] = best.ModeKey,
+            ["at"] = best.At
+        };
 
         public List<LeaderboardEntry> GetLeaderboard(Operation op, int gridSize, GamePlayMode mode) =>
             new(Leaderboards.GetValueOrDefault(GridConfig.BoardKey(op, gridSize, mode), new List<LeaderboardEntry>()));
