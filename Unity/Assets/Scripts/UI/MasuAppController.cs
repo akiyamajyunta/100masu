@@ -3382,12 +3382,14 @@ namespace Masu.UI
                 }
                 return;
             }
-            if (_state.Operation == Operation.Sub && Input.GetKeyDown(KeyCode.Minus))
+            if (_state.Operation == Operation.Sub
+                && (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus)))
             {
                 TypeIntoFocusedCell('-');
                 return;
             }
-            if (_state.Operation == Operation.Div && Input.GetKeyDown(KeyCode.Period))
+            if (_state.Operation == Operation.Div
+                && (Input.GetKeyDown(KeyCode.Period) || Input.GetKeyDown(KeyCode.KeypadPeriod)))
             {
                 TypeIntoFocusedCell('.');
                 return;

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Masu.Core
@@ -15,7 +16,7 @@ namespace Masu.Core
                 Operation.Add => a + b,
                 Operation.Sub => a - b,
                 Operation.Mul => a * b,
-                Operation.Div => Math.Round(a / (double)b, 1),
+                Operation.Div => b == 0 ? 0 : RoundTenths(a / (double)b),
                 _ => 0
             };
         }
@@ -27,25 +28,29 @@ namespace Masu.Core
             if (operation == Operation.Div)
             {
                 if (!DivInputRe.IsMatch(trimmed)) return null;
-                return Math.Round(double.Parse(trimmed), 1);
+                return RoundTenths(double.Parse(trimmed, CultureInfo.InvariantCulture));
             }
             if (!IntInputRe.IsMatch(trimmed)) return null;
-            return int.Parse(trimmed);
+            return int.Parse(trimmed, CultureInfo.InvariantCulture);
         }
 
         public static bool AnswersMatch(double expected, double parsed, Operation operation)
         {
             if (operation == Operation.Div)
-                return Math.Round(parsed, 1) == expected;
+                return Math.Abs(RoundTenths(parsed) - RoundTenths(expected)) < 0.001;
             return Math.Abs(parsed - expected) < 0.0001;
         }
 
         public static string CanonicalValue(double parsed, Operation operation)
         {
             if (operation == Operation.Div)
-                return $"{Math.Round(parsed, 1):F1}";
-            return ((int)parsed).ToString();
+                return RoundTenths(parsed).ToString("F1", CultureInfo.InvariantCulture);
+            return ((int)parsed).ToString(CultureInfo.InvariantCulture);
         }
+
+        /// <summary>小数第2位を四捨五入。既定の ToEven だと 1.25 が 1.2 になる。</summary>
+        private static double RoundTenths(double value) =>
+            Math.Round(value, 1, MidpointRounding.AwayFromZero);
 
         public static string FormatTime(double seconds)
         {

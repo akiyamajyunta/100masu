@@ -77,6 +77,7 @@ namespace Masu.Core
             Finished = false;
             PendingQuickGrade = default;
             SyncBufferFromFocus();
+            ReplaceNextDigit = false;
         }
 
         private static List<int> UniqueHeaderDigits(int count)
@@ -233,10 +234,11 @@ namespace Masu.Core
 
             FocusRow = newRow;
             FocusCol = newCol;
-            if (PlayMode == GamePlayMode.Quick && Grid.IsPlayCell(FocusRow, FocusCol))
+            if (moved && PlayMode == GamePlayMode.Quick && Grid.IsPlayCell(FocusRow, FocusCol))
                 PrepareQuickCellForEdit(FocusRow, FocusCol);
             SyncBufferFromFocus();
-            ReplaceNextDigit = !string.IsNullOrEmpty(Buffer);
+            if (moved)
+                ReplaceNextDigit = !string.IsNullOrEmpty(Buffer);
         }
 
         /// <summary>クイック: フォーカス中マスを採点（最終マス確定・Enter 用）。</summary>
@@ -309,6 +311,8 @@ namespace Masu.Core
         {
             if (Finished || !Grid.IsPlayCell(FocusRow, FocusCol)) return;
             if (PlayMode == GamePlayMode.Quick && IsFocusCellLockedCorrect()) return;
+            if (ReplaceNextDigit && TryReplaceEntry(ch))
+                return;
             if (Operation == Operation.Sub && ch == '-' && Buffer == "")
             {
                 Buffer = "-";
@@ -321,24 +325,30 @@ namespace Masu.Core
                 return;
             }
             if (!char.IsDigit(ch)) return;
-            if (ReplaceNextDigit)
-            {
-                var replaced = ch.ToString();
-                if (!BufferWouldBeValid(replaced) || !BufferWithinRange(replaced)) return;
-                Buffer = replaced;
-                ReplaceNextDigit = false;
-                return;
-            }
             var candidate = Buffer + ch;
             if (!BufferWouldBeValid(candidate) || !BufferWithinRange(candidate))
-            {
-                var replaced = ch.ToString();
-                if (string.IsNullOrEmpty(Buffer) || !BufferWouldBeValid(replaced) || !BufferWithinRange(replaced))
-                    return;
-                Buffer = replaced;
                 return;
-            }
             Buffer = candidate;
+        }
+
+        /// <summary>数字の入ったマスへ入った直後の1文字は、追記せずその文字から打ち直す。</summary>
+        private bool TryReplaceEntry(char ch)
+        {
+            string replaced;
+            if (Operation == Operation.Sub && ch == '-')
+                replaced = "-";
+            else if (Operation == Operation.Div && ch == '.')
+                replaced = "0.";
+            else if (char.IsDigit(ch))
+                replaced = ch.ToString();
+            else
+                return false;
+
+            if (!BufferWouldBeValid(replaced) || !BufferWithinRange(replaced))
+                return true;
+            Buffer = replaced;
+            ReplaceNextDigit = false;
+            return true;
         }
 
         public void HandleBackspace()

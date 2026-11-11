@@ -133,7 +133,8 @@ namespace Masu.UI
             selectionOutline.effectDistance = new Vector2(
                 MasuVisualThemeLayout.CardSelectionRingOutsetPx,
                 -MasuVisualThemeLayout.CardSelectionRingOutsetPx);
-            selectionOutline.useGraphicAlpha = false;
+            // 左からスライドする間、カード本体は透明。枠だけ不透明だと金色の四角になる。
+            selectionOutline.useGraphicAlpha = true;
 
             var whiteGo = new GameObject("WhiteFrame", typeof(RectTransform), typeof(Image));
             whiteGo.transform.SetParent(go.transform, false);
