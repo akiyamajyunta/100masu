@@ -3536,13 +3536,25 @@ namespace Masu.UI
             if (_resultView == ResultView.Entry)
             {
                 if (Input.GetKeyDown(KeyCode.UpArrow))
+                {
                     _nameKeyboard.Move(-1, 0);
+                    MasuMenuSfx.PlayGridCursor();
+                }
                 else if (Input.GetKeyDown(KeyCode.DownArrow))
+                {
                     _nameKeyboard.Move(1, 0);
+                    MasuMenuSfx.PlayGridCursor();
+                }
                 else if (Input.GetKeyDown(KeyCode.LeftArrow))
+                {
                     _nameKeyboard.Move(0, -1);
+                    MasuMenuSfx.PlayGridCursor();
+                }
                 else if (Input.GetKeyDown(KeyCode.RightArrow))
+                {
                     _nameKeyboard.Move(0, 1);
+                    MasuMenuSfx.PlayGridCursor();
+                }
                 else if (Input.GetKeyDown(KeyCode.Backspace))
                     _entryName = _entryName.Length > 0 ? _entryName.Substring(0, _entryName.Length - 1) : _entryName;
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
@@ -3551,6 +3563,7 @@ namespace Masu.UI
                     _entryName = newName;
                     if (submitAndExit)
                     {
+                        MasuMenuSfx.PlayNameConfirm();
                         SubmitScoreEntry();
                         return;
                     }
@@ -3569,7 +3582,10 @@ namespace Masu.UI
                 else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
                 {
                     if (!_recordConfirmEnterOpensKeyboard && !string.IsNullOrWhiteSpace(_entryName))
+                    {
+                        MasuMenuSfx.PlayNameConfirm();
                         SubmitScoreEntry();
+                    }
                     else
                         EnterNameEntryView();
                 }

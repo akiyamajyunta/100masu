@@ -237,7 +237,12 @@ namespace Masu.UI
 
             var mark = MasuUiFactory.CreateText(go.transform, "Mark", "", _markFontSize, MasuTheme.CorrectMark,
                 TextAnchor.MiddleCenter);
-            MasuUiFactory.Stretch(mark.rectTransform);
+            mark.alignByGeometry = true;
+            MasuFonts.Apply(mark, _markFontSize);
+            mark.font.RequestCharactersInTexture("○×", _markFontSize, mark.fontStyle);
+            mark.gameObject.AddComponent<MasuCenterGlyph>();
+            PlaceMarkOnCell(mark.rectTransform);
+            mark.transform.SetAsLastSibling();
             mark.gameObject.SetActive(false);
 
             _cells[(row, col)] = new CellWidgets
@@ -335,30 +340,23 @@ namespace Masu.UI
 
                 var showMark = false;
                 var markOk = false;
-                if (_charredCells.Contains((row, col)))
-                {
-                    showMark = false;
-                }
-                else if (scoreMarks != null && scoreMarks.TryGetValue((row, col), out var scoreOk))
+                if (scoreMarks != null && scoreMarks.TryGetValue((row, col), out var scoreOk))
                 {
                     showMark = true;
                     markOk = scoreOk;
-                    if (MasuDopamineFx.Enabled && !scoreOk)
-                        showMark = false;
                 }
                 else if (quickMarks != null && quickMarks.TryGetValue((row, col), out var quickOk))
                 {
+                    showMark = true;
+                    markOk = quickOk;
                     if (MasuDopamineFx.Enabled && !quickOk)
-                    {
-                        showMark = false;
                         baseBg = MasuTheme.DopamineCharredBg;
-                    }
                     else
-                    {
-                        showMark = true;
-                        markOk = quickOk;
                         baseBg = quickOk ? MasuTheme.CellQuickCorrect : MasuTheme.CellQuickWrong;
-                    }
+                }
+                else if (_charredCells.Contains((row, col)))
+                {
+                    showMark = false;
                 }
                 else if (!scoreAnimating && state.PlayMode == GamePlayMode.Quick
                          && state.Cells.TryGetValue((row, col), out var playCell)
@@ -369,27 +367,49 @@ namespace Masu.UI
                     baseBg = MasuTheme.CellQuickCorrect;
                 }
 
-                if (showMark)
-                {
-                    w.Mark.text = markOk ? "○" : "×";
-                    w.Mark.color = markOk ? MasuTheme.CorrectMark : MasuTheme.WrongMark;
-                    w.Mark.gameObject.SetActive(true);
-                    if (!focused && w.FocusRingOuter != null)
-                    {
-                        w.FocusRingOuter.gameObject.SetActive(false);
-                        w.FocusRingInner.gameObject.SetActive(false);
-                    }
-                }
-                else
-                {
-                    w.Mark.gameObject.SetActive(false);
-                }
-
                 w.Label.text = state.PlayCellDisplay(row, col);
+                MasuFonts.ApplyGridCell(w.Label, _cellFontSize);
                 ApplyFx(w, (row, col), baseBg);
                 if (MasuDopamineFx.Enabled)
                     ApplyDopamineLabelLook(w, row, col);
+
+                if (showMark)
+                    ShowGradeMark(w, markOk);
+                else
+                    w.Mark.gameObject.SetActive(false);
             }
+        }
+
+        /// <summary>記号のピボットをマスの中心に固定する。字形の見た目の中心は MasuCenterGlyph が合わせる。</summary>
+        private static void PlaceMarkOnCell(RectTransform rt)
+        {
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        /// <summary>数字のすぐ後ろ、マスの上下中央に ○× を置く。</summary>
+        private void ShowGradeMark(CellWidgets w, bool markOk)
+        {
+            var symbol = markOk ? "○" : "×";
+            var size = Mathf.Max(_markFontSize, Mathf.RoundToInt(_cellSize * 0.78f));
+            w.Mark.text = symbol;
+            w.Mark.fontSize = size;
+            MasuFonts.Apply(w.Mark, size);
+            w.Mark.fontStyle = FontStyle.Bold;
+            w.Mark.alignment = TextAnchor.MiddleCenter;
+            w.Mark.alignByGeometry = true;
+            w.Mark.font.RequestCharactersInTexture(symbol, size, FontStyle.Bold);
+            w.Mark.color = markOk ? MasuTheme.CorrectMark : MasuTheme.WrongMark;
+
+            PlaceMarkOnCell(w.Mark.rectTransform);
+            w.Mark.SetVerticesDirty();
+
+            w.Label.transform.SetAsLastSibling();
+            w.Mark.transform.SetSiblingIndex(w.Label.transform.GetSiblingIndex());
+            w.Mark.gameObject.SetActive(true);
         }
 
         private void ApplyDopamineLabelLook(CellWidgets w, int row, int col)

@@ -15,6 +15,8 @@ namespace Masu.Core
         public int FocusRow = GameConstants.InitialFocusRow;
         public int FocusCol = GameConstants.InitialFocusCol;
         public string Buffer = "";
+        /// <summary>既存の数字があるマスへ入った直後は、次の数字で内容を置き換える。</summary>
+        public bool ReplaceNextDigit;
         public int PenaltyCount;
         public int PenaltySeconds;
         public double? StartRealtime;
@@ -234,6 +236,7 @@ namespace Masu.Core
             if (PlayMode == GamePlayMode.Quick && Grid.IsPlayCell(FocusRow, FocusCol))
                 PrepareQuickCellForEdit(FocusRow, FocusCol);
             SyncBufferFromFocus();
+            ReplaceNextDigit = !string.IsNullOrEmpty(Buffer);
         }
 
         /// <summary>クイック: フォーカス中マスを採点（最終マス確定・Enter 用）。</summary>
@@ -318,8 +321,23 @@ namespace Masu.Core
                 return;
             }
             if (!char.IsDigit(ch)) return;
+            if (ReplaceNextDigit)
+            {
+                var replaced = ch.ToString();
+                if (!BufferWouldBeValid(replaced) || !BufferWithinRange(replaced)) return;
+                Buffer = replaced;
+                ReplaceNextDigit = false;
+                return;
+            }
             var candidate = Buffer + ch;
-            if (!BufferWouldBeValid(candidate) || !BufferWithinRange(candidate)) return;
+            if (!BufferWouldBeValid(candidate) || !BufferWithinRange(candidate))
+            {
+                var replaced = ch.ToString();
+                if (string.IsNullOrEmpty(Buffer) || !BufferWouldBeValid(replaced) || !BufferWithinRange(replaced))
+                    return;
+                Buffer = replaced;
+                return;
+            }
             Buffer = candidate;
         }
 
@@ -327,6 +345,7 @@ namespace Masu.Core
         {
             if (Finished || !Grid.IsPlayCell(FocusRow, FocusCol)) return;
             if (PlayMode == GamePlayMode.Quick && IsFocusCellLockedCorrect()) return;
+            ReplaceNextDigit = false;
             var cell = Cells[(FocusRow, FocusCol)];
             Buffer = Buffer.Length > 0 ? Buffer[..^1] : "";
             cell.Value = Buffer;

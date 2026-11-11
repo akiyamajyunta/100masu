@@ -12,6 +12,7 @@ namespace Masu.UI
         static AudioClip _gridCursor;
         static AudioClip _confirm;
         static AudioClip _cancel;
+        static AudioClip _nameConfirm;
 
         public static void PlayCursor() => Play(ref _cursor, "menu_cursor");
 
@@ -20,6 +21,8 @@ namespace Masu.UI
         public static void PlayConfirm() => Play(ref _confirm, "menu_confirm");
 
         public static void PlayCancel() => Play(ref _cancel, "menu_cancel");
+
+        public static void PlayNameConfirm() => Play(ref _nameConfirm, "name_confirm");
 
         public static void SetSeVolume(float volume)
         {
