@@ -15,7 +15,6 @@ namespace Masu.UI
         private readonly RectTransform _highlight;
         private readonly float[] _rowCenterY;
         private readonly Text[] _titleLabels;
-
         private readonly int _titleSize;
 
         public Text TitleLabel(int index) => _titleLabels[index];

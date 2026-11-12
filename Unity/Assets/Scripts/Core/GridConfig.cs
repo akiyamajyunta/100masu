@@ -15,7 +15,7 @@ namespace Masu.Core
 
         public void Configure(int playSize)
         {
-            PlaySize = Mathf.Clamp(playSize, 4, 12);
+            PlaySize = Mathf.Clamp(playSize, GameConstants.FreePlaySizeMin, GameConstants.FreePlaySizeMax);
         }
 
         public bool IsPlayCell(int row, int col) =>

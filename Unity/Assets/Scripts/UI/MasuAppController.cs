@@ -87,6 +87,8 @@ namespace Masu.UI
         private const float BackdropBleedPixels = 32f;
         private Text[] _titleLabels;
         private int _pendingGridSize = 4;
+        private int _freePlaySize = 4;
+        private bool _freePlay;
         private int _playStyleCursor;
         private MasuForestSelectMenu _playStyleForestMenu;
         private MasuForestSelectMenu _modeForestMenu;
@@ -397,6 +399,7 @@ namespace Masu.UI
                 case AppScreen.Help: HandleHelpInput(); break;
                 case AppScreen.Mode: HandleModeInput(); break;
                 case AppScreen.Grid: HandleGridInput(); break;
+                case AppScreen.FreeGrid: HandleFreeGridInput(); break;
                 case AppScreen.PlayStyle: HandlePlayStyleInput(); break;
                 case AppScreen.ScoreRanking: HandleRankingInput(); break;
                 case AppScreen.Options: HandleOptionsInput(); break;
@@ -542,16 +545,17 @@ namespace Masu.UI
             }, ForestMenuLayout.ForRowCount(4), instruction: "お好みの演算をお選びください");
             _menuPanels[AppScreen.Mode] = _modeForestMenu.Panel;
 
-            var gridRows = new ForestMenuRow[GameConstants.GridSizes.Length];
-            for (var i = 0; i < gridRows.Length; i++)
+            var gridRows = new ForestMenuRow[GameConstants.GridMenuCount];
+            for (var i = 0; i < GameConstants.GridSizes.Length; i++)
             {
                 var size = GameConstants.GridSizes[i];
                 gridRows[i] = new ForestMenuRow(GridConfig.GridLabel(size));
             }
+            gridRows[GameConstants.GridSizes.Length] = new ForestMenuRow("フリー");
             _gridForestMenu = MasuForestSelectMenu.Create(_menuRoot, "Grid", gridRows,
                 ForestMenuLayout.ForRowCount(gridRows.Length), instruction: "マス目を選択してください");
             _menuPanels[AppScreen.Grid] = _gridForestMenu.Panel;
-
+            BuildFreeGridPanel();
             BuildRankingPanel(out var rankPanel);
             _menuPanels[AppScreen.ScoreRanking] = rankPanel;
 
@@ -659,6 +663,7 @@ namespace Masu.UI
 
         private static bool IsForestMenuScreen(AppScreen screen) =>
             screen == AppScreen.PlayStyle || screen == AppScreen.Mode || screen == AppScreen.Grid
+            || screen == AppScreen.FreeGrid
             || screen == AppScreen.ScoreRanking
             || screen == AppScreen.Options || screen == AppScreen.OptionsVisual
             || screen == AppScreen.OptionsEffects || screen == AppScreen.OptionsSound;
@@ -1716,6 +1721,8 @@ namespace Masu.UI
                 _modeForestMenu?.CollectEntranceSlideTargets(targets);
             else if (screen == AppScreen.Grid)
                 _gridForestMenu?.CollectEntranceSlideTargets(targets);
+            else if (screen == AppScreen.FreeGrid)
+                CollectFreeGridEntranceTargets(targets);
             else if (screen == AppScreen.ScoreRanking)
                 CollectRankingEntranceTargets(targets);
             else if (screen == AppScreen.Options)
@@ -2230,7 +2237,7 @@ namespace Masu.UI
         }
 
         /// <summary>プレイスタイル決定 → 暗転 → 盤面準備 → 明転 → イントロ開始。</summary>
-        private IEnumerator GameStartTransition(Operation op, PlayBoard board)
+        private IEnumerator GameStartTransition(Operation op, PlayBoard board, bool freePlay)
         {
             _menuBusy = true;
             try
@@ -2246,7 +2253,7 @@ namespace Masu.UI
                 yield return new WaitForSecondsRealtime(0.55f);
                 yield return MasuUiAnimations.FadeAlpha(_fadeCaption, 1f, 0f, 0.2f);
 
-                StartGame(op, board);
+                StartGame(op, board, freePlay);
                 yield return null; // レイアウト確定を 1 フレーム待つ
                 yield return MasuUiAnimations.FadeAlpha(_fadeImage, 1f, 0f, 0.5f, MasuUiAnimations.EaseOutCubic);
             }
@@ -2260,11 +2267,12 @@ namespace Masu.UI
         }
 
         /// <summary>盤面の準備まで（イントロは BeginIntro で別途開始）。</summary>
-        private void StartGame(Operation op, in PlayBoard board)
+        private void StartGame(Operation op, in PlayBoard board, bool freePlay)
         {
             _operation = op;
             _gridSize = board.PlaySize;
             _playMode = board.Mode;
+            _freePlay = freePlay;
             if (_resultRoot != null)
                 _resultRoot.gameObject.SetActive(false);
             _state.Grid.Configure(board.PlaySize);
@@ -2621,9 +2629,13 @@ namespace Masu.UI
             _lastAccuracy = Scoring.AccuracyPercent(correct, playN);
             var elapsed = _state.ElapsedSeconds();
             _displayScore = Scoring.ComputeSessionScore(elapsed, correct, playN, _operation);
-            if (!_resultScoreSaved)
+            if (!_resultScoreSaved && !_freePlay)
             {
                 _store.RecordSession(_operation, _gridSize, _playMode, _displayScore);
+                _resultScoreSaved = true;
+            }
+            else if (_freePlay)
+            {
                 _resultScoreSaved = true;
             }
             _lastElapsedSeconds = elapsed;
@@ -2651,6 +2663,7 @@ namespace Masu.UI
                 _resultSummary.text = string.Join(" / ", parts);
             }
             ResetResultFlow();
+            ApplyFreeResultMenu();
             _resultRoot.SetAsLastSibling();
             _resultRoot.gameObject.SetActive(true);
             ShowResultPanel();
@@ -2787,6 +2800,7 @@ namespace Masu.UI
 
         private void BeginScoreRecord()
         {
+            if (_freePlay) return;
             var previewName = string.IsNullOrWhiteSpace(_entryName) ? "-" : _entryName.Trim();
             var (_, rank) = Leaderboard.PreviewAfterInsert(
                 _store.GetLeaderboard(_operation, _gridSize, _playMode),
@@ -2806,6 +2820,12 @@ namespace Masu.UI
 
         private void SubmitScoreEntry()
         {
+            if (_freePlay)
+            {
+                ShowResultMenuView();
+                return;
+            }
+
             var name = (_entryName ?? "").Trim();
             if (!string.IsNullOrEmpty(name))
             {
@@ -3316,7 +3336,7 @@ namespace Masu.UI
 
         private void HandleGridInput()
         {
-            var n = GameConstants.GridSizes.Length;
+            var n = GameConstants.GridMenuCount;
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 var next = NavVertical(_gridCursor, -1, n);
@@ -3340,10 +3360,17 @@ namespace Masu.UI
                 var choice = _gridCursor;
                 var op = _pendingOperation;
                 var mode = _pendingPlayMode;
+                if (GameConstants.IsFreeGridMenuIndex(choice))
+                {
+                    Decide(_gridForestMenu.TitleLabel(choice), () => ShowScreen(AppScreen.FreeGrid));
+                    return;
+                }
+
+                var size = GameConstants.GridSizes[choice];
                 Decide(_gridForestMenu.TitleLabel(choice), () =>
                 {
-                    _pendingGridSize = GameConstants.GridSizes[choice];
-                    StartCoroutine(GameStartTransition(op, new PlayBoard(_pendingGridSize, mode)));
+                    _pendingGridSize = size;
+                    StartCoroutine(GameStartTransition(op, new PlayBoard(size, mode), freePlay: false));
                 });
             }
             else if (Input.GetKeyDown(KeyCode.Escape))
@@ -3351,6 +3378,159 @@ namespace Masu.UI
                 MasuMenuSfx.PlayCancel();
                 ShowScreen(AppScreen.Mode);
             }
+        }
+
+        private Text _freeSizeLabel;
+        private Text _freeArrowLeft;
+        private Text _freeArrowRight;
+        private const float FreeGridRowCenterY = -16f;
+        private const float FreeGridArrowPad = 28f;
+
+        private void BuildFreeGridPanel()
+        {
+            var panel = MasuUiFactory.CreatePanel(_menuRoot, "FreeGrid", Color.clear);
+            MasuUiFactory.Stretch(panel.GetComponent<RectTransform>());
+            MasuInstructionBanner.Create(panel.transform, "任意のマス目を選択してください");
+
+            _freeArrowLeft = CreateFreeGridArrow(panel.transform, "FreeArrowLeft", "◀", 0f, FreeGridRowCenterY);
+            _freeArrowRight = CreateFreeGridArrow(panel.transform, "FreeArrowRight", "▶", 0f, FreeGridRowCenterY);
+
+            _freeSizeLabel = MasuUiFactory.CreateText(panel.transform, "FreeSize", FreeGridRowLabel(_freePlaySize),
+                96, new Color(0.06f, 0.06f, 0.06f), TextAnchor.MiddleCenter);
+            MasuFonts.ApplyMincho(_freeSizeLabel, 96, bold: true);
+            var rt = _freeSizeLabel.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, FreeGridRowCenterY);
+            rt.sizeDelta = new Vector2(420f, 140f);
+
+            var hint = MasuUiFactory.CreateText(panel.transform, "FreeHint", "←→ マス目　Enter 開始　Esc 戻る",
+                22, Color.white, TextAnchor.LowerCenter);
+            MasuFonts.ApplyMincho(hint, 22);
+            MasuUiFactory.ApplyBlackOutline(hint, 1.5f);
+            var hintRt = hint.rectTransform;
+            hintRt.anchorMin = hintRt.anchorMax = new Vector2(0.5f, 0f);
+            hintRt.pivot = new Vector2(0.5f, 0f);
+            hintRt.anchoredPosition = new Vector2(0f, 40f);
+            hintRt.sizeDelta = new Vector2(920f, 36f);
+
+            _menuPanels[AppScreen.FreeGrid] = panel;
+            RefreshFreeSizeLabel();
+        }
+
+        private static Text CreateFreeGridArrow(Transform parent, string name, string symbol, float x, float y)
+        {
+            var arrow = MasuUiFactory.CreateText(parent, name, symbol, MasuRankingLayout.GridArrowFontSize,
+                RankingTextWhite, TextAnchor.MiddleCenter);
+            StyleRankingJapanese(arrow, MasuRankingLayout.GridArrowFontSize);
+            var rt = arrow.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(x, y);
+            rt.sizeDelta = new Vector2(MasuRankingLayout.GridSelectorArrowWidth,
+                MasuRankingLayout.GridSelectorArrowHeight);
+            return arrow;
+        }
+
+        private void RefreshFreeSizeLabel()
+        {
+            if (_freeSizeLabel == null) return;
+            _freeSizeLabel.text = FreeGridRowLabel(_freePlaySize);
+            MasuFonts.ApplyMincho(_freeSizeLabel, 96, bold: true);
+
+            var gen = new TextGenerator();
+            var settings = _freeSizeLabel.GetGenerationSettings(Vector2.zero);
+            var labelW = gen.GetPreferredWidth(_freeSizeLabel.text, settings);
+            var labelH = gen.GetPreferredHeight(_freeSizeLabel.text, settings);
+            _freeSizeLabel.rectTransform.sizeDelta = new Vector2(
+                Mathf.Max(420f, labelW + 48f),
+                Mathf.Max(140f, labelH + 24f));
+
+            var halfLabel = labelW * 0.5f;
+            var halfArrow = MasuRankingLayout.GridSelectorArrowWidth * 0.5f;
+            var arrowX = halfLabel + halfArrow + FreeGridArrowPad;
+            if (_freeArrowLeft != null)
+                _freeArrowLeft.rectTransform.anchoredPosition = new Vector2(-arrowX, FreeGridRowCenterY);
+            if (_freeArrowRight != null)
+                _freeArrowRight.rectTransform.anchoredPosition = new Vector2(arrowX, FreeGridRowCenterY);
+
+            SetFreeArrowVisible(_freeArrowLeft, _freePlaySize > GameConstants.FreePlaySizeMin);
+            SetFreeArrowVisible(_freeArrowRight, _freePlaySize < GameConstants.FreePlaySizeMax);
+        }
+
+        private static void SetFreeArrowVisible(Text arrow, bool enabled)
+        {
+            if (arrow == null) return;
+            var color = arrow.color;
+            color.a = enabled ? 1f : 0.28f;
+            arrow.color = color;
+        }
+
+        private void HandleFreeGridInput()
+        {
+            if (Input.GetKeyDown(KeyCode.LeftArrow))
+                AdjustFreePlaySize(-1);
+            else if (Input.GetKeyDown(KeyCode.RightArrow))
+                AdjustFreePlaySize(1);
+            else if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            {
+                var op = _pendingOperation;
+                var mode = _pendingPlayMode;
+                var size = _freePlaySize;
+                MasuMenuSfx.PlayConfirm();
+                _pendingGridSize = size;
+                StartCoroutine(GameStartTransition(op, new PlayBoard(size, mode), freePlay: true));
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                MasuMenuSfx.PlayCancel();
+                ShowScreen(AppScreen.Grid);
+            }
+        }
+
+        private void CollectFreeGridEntranceTargets(List<RectTransform> targets)
+        {
+            if (_freeArrowLeft != null)
+                targets.Add(_freeArrowLeft.rectTransform);
+            if (_freeSizeLabel != null)
+                targets.Add(_freeSizeLabel.rectTransform);
+            if (_freeArrowRight != null)
+                targets.Add(_freeArrowRight.rectTransform);
+        }
+
+        private void AdjustFreePlaySize(int delta)
+        {
+            var next = Mathf.Clamp(_freePlaySize + delta, GameConstants.FreePlaySizeMin, GameConstants.FreePlaySizeMax);
+            if (next == _freePlaySize) return;
+            _freePlaySize = next;
+            RefreshFreeSizeLabel();
+            MasuMenuSfx.PlayCursor();
+        }
+
+        private static string FreeGridRowLabel(int size) => $"{size}×{size}";
+
+        private void ApplyFreeResultMenu()
+        {
+            if (_resultMenuLabels == null) return;
+            for (var i = 0; i < _resultMenuLabels.Length && i < ResultMenuItems.Length; i++)
+            {
+                var hideRecord = _freePlay && ResultMenuItems[i] == "記録する";
+                _resultMenuLabels[i].gameObject.SetActive(!hideRecord);
+            }
+        }
+
+        private int MoveResultMenu(int delta)
+        {
+            var n = ResultMenuItems.Length;
+            var i = _resultMenu;
+            for (var k = 0; k < n; k++)
+            {
+                i = (i + delta + n) % n;
+                if (_resultMenuLabels != null && i < _resultMenuLabels.Length
+                    && _resultMenuLabels[i] != null && _resultMenuLabels[i].gameObject.activeSelf)
+                    return i;
+            }
+            return _resultMenu;
         }
 
         private void HandlePlayStyleInput()
@@ -3626,7 +3806,7 @@ namespace Masu.UI
         /// <summary>いまの演算・マス目・モードのまま、新しい盤で始める。</summary>
         private void ReplaySameBoard()
         {
-            StartCoroutine(GameStartTransition(_operation, new PlayBoard(_gridSize, _playMode)));
+            StartCoroutine(GameStartTransition(_operation, new PlayBoard(_gridSize, _playMode), _freePlay));
         }
 
         private void HandleResultInput()
@@ -3692,13 +3872,13 @@ namespace Masu.UI
 
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
-                _resultMenu = NavVertical(_resultMenu, -1, ResultMenuItems.Length);
+                _resultMenu = MoveResultMenu(-1);
                 ShowResultPanel();
                 MasuMenuSfx.PlayCursor();
             }
             else if (Input.GetKeyDown(KeyCode.DownArrow))
             {
-                _resultMenu = NavVertical(_resultMenu, 1, ResultMenuItems.Length);
+                _resultMenu = MoveResultMenu(1);
                 ShowResultPanel();
                 MasuMenuSfx.PlayCursor();
             }

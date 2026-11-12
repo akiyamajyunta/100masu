@@ -10,5 +10,11 @@ namespace Masu.Core
         public const int StarGaugeMax = 8;
 
         public static readonly int[] GridSizes = { 4, 6, 8, 9, 12 };
+        public const int FreePlaySizeMin = 1;
+        public const int FreePlaySizeMax = 15;
+
+        public static int GridMenuCount => GridSizes.Length + 1;
+
+        public static bool IsFreeGridMenuIndex(int index) => index == GridSizes.Length;
     }
 }

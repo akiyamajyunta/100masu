@@ -1,0 +1,44 @@
+VBCSCompilerPreWarmer: watching VBCSCompiler (PID 20400)
+VBCSCompilerPreWarmer: pre-warm launched (dotnet PID 87752)
+VBCSCompiler prewarm took 67.34 ms
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.6/staging' branch; Version is '6000.6.5f1 (3ff58d469c8a) revision 4191629'; Using compiler version '194234433'; Build Type 'Release'
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-akiyama" at "2026-11-12T02:52:36.0392318Z"
+OS: 'Windows 11  (10.0.26200) Professional' Language: 'ja' Physical Memory: 32666 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-11-12T02:52:36Z
+[Licensing::Client] Code 10 while verifying Licensing Client signature (process Id: 92964, path: "C:/Program Files/WindowsApps/UnityTechnologies.UnityHub_3.22.6.65535_x64__2vrhnee42bhxm/app/UnityLicensingClient_V1/Unity.Licensing.Client.exe")
+[Licensing::Module] LicensingClient has failed validation; ignoring
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.3+d7ffd15
+  Session Id:              2bc31360ab114d0c92866d2f974e0428
+  Correlation Id:          c6d2de9e8372b6249296a76c2506ade5
+  External correlation Id: 8107691996619752351
+  Machine Id:              5YqPxUBZLiyvtxCVPMiTECN2iRQ=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-akiyama" (connect: 0.00s, validation: 0.01s, handshake: 0.12s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-akiyama-notifications" at "2026-11-12T02:52:36.1777276Z"
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 15669778663370-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.03
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] Licensing Background thread has ended after 0.25s
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.6.5f1\Editor\Unity.exe
+-batchmode
+-nographics
+-quit
+-projectPath
+C:\Users\akiyama\Project\100masu\Unity
+-logFile
+C:\Users\akiyama\Project\100masu\Unity\_compile_log.txt
+Successfully changed project path to: C:\Users\akiyama\Project\100masu\Unity
+C:/Users/akiyama/Project/100masu/Unity
+[ExitDontLaunchBugReporter] Exiting without the bug reporter. Application will exit with return code 1
